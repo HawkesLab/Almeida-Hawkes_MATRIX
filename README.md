@@ -1,4 +1,4 @@
-# Almeida-Hawkes_MATRIX
+# Almeida BK, Hawkes CV. Fungal SynCom Assembly and Impacts on Wheat Drought Response
 Data and associated analyses for Almeida &amp; Hawkes MATRIX 2023 growth chamber experiment testing Fungal Priority and Diversity effects on wheat drought stress response
 
 ## Supplementary Data and Analysis
