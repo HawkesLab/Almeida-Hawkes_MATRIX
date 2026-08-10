@@ -1,0 +1,395 @@
+---
+title: "RRPp"
+author: "Brianna Almeida"
+output:
+  html_document:
+    df_print: paged
+  pdf: default
+  pdf_document: default
+editor_options:
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+The purpose of this script is to determine the relationship between plant performance and final community composition based on presence/absence.
+
+Load the packages 
+```{r, warning=FALSE, message=FALSE,echo=FALSE}
+library(vegan)
+library(ape)
+library(phyloseq)
+library(dplyr)
+library(car)
+library(ggplot2)
+library(colorRamps)
+library(tidyverse)
+library(stringr)
+library(ggord)
+library(viridis)
+library(agricolae)
+library(emmeans)
+library(Rmisc)
+library(RColorBrewer)
+library(microbiome)
+library(DESeq2)
+library(corrplot)
+library(olsrr)
+library(psadd)
+library(lme4)
+library(RRPP)
+library(ggforce)
+library(ggpattern)
+library(ggordiplots)
+```
+
+#Fungi RRPP with presence absence data
+```{r}
+presence_absence_fung<-read.csv("presence_absence_OTUtable.csv",header=TRUE,row.names = 1)
+colnames(presence_absence_fung)=sub("X","",colnames(presence_absence_fung))
+
+metadata<-read.csv("Total_Harvest_Data.csv",sep=",",header=TRUE, row.names=1)
+options(na.action="na.fail")
+#remove blanks and mocks
+metadata<-metadata[-c(360:390),]
+#remove monocultures
+metadata<-subset(metadata, Diversity.Level !="Mono")
+
+#make sure columns match between metadata and community samples
+#remove row 252 in metadata because its an outlier 
+metadata<-metadata[-c(252),]
+presence_absence_fung<-t(presence_absence_fung)
+presence_absence_fung<-as.data.frame(presence_absence_fung)
+presence_absence_fung <- presence_absence_fung[rowSums(presence_absence_fung) != 0, ]
+metadata = metadata[row.names(metadata) %in% row.names(presence_absence_fung),]
+presence_absence_fung = presence_absence_fung[row.names(presence_absence_fung) %in% row.names(metadata),]
+
+#make the columns in the same order
+presence_absence_fung <- presence_absence_fung[rownames(metadata),]
+
+fung_vegdist<-vegan::vegdist(presence_absence_fung,method="jaccard")
+fung_vegdist<-as.matrix(fung_vegdist)
+
+#structure based on Montgomery with drought nested in microcosm
+of2 <- RRPP::lm.rrpp(fung_vegdist ~ Comm*Microcosm/Drought+ 1/TimeBlock,
+data = metadata, SS.type = "III", print.progress = FALSE, seed = "random", iter = 1000)
+
+anova(of2, effect.type = "F")
+anova(of2, effect.type = "F", error =c("Comm:Microcosm:Drought","Residuals","Residuals","Residuals"))
+
+#separate SynCom into pioneer and diversity treatments
+of2 <- RRPP::lm.rrpp(fung_vegdist ~ Pioneer*Diversity.Level*(Microcosm/Drought)+ 1/TimeBlock,
+data = metadata, SS.type = "III", print.progress = FALSE, seed = "random", iter = 1000)
+#remove row 252 in metadata because its an outlier 
+anova(of2, effect.type = "F")
+anova(of2, effect.type = "F", error =c("Pioneer:Microcosm:Drought","Diversity.Level:Microcosm:Drought","Residuals","Residuals","Residuals","Residuals","Residuals","Residuals","Residuals","Residuals","Residuals"))
+
+of3 <- RRPP::lm.rrpp(fung_vegdist ~ Pioneer,
+data = metadata, SS.type = "III", print.progress = FALSE, seed = "random", iter = 1000)
+anova(of3, effect.type = "F")
+
+fit<-RRPP::pairwise(of3,groups=metadata$Pioneer)
+print<-summary.pairwise(fit)
+print<-summary(fit)
+print2<-print$summary.table
+
+fit<-RRPP::pairwise(of2,groups=metadata$Comm)
+print<-summary.pairwise(fit)
+print<-summary(fit)
+print<-print$summary.table
+
+```
+
+Is final community associated with any plant performance metrics? 
+```{r}
+metadata_phys<-read.csv("Total_Phys_Data.csv",sep=",",header=TRUE, row.names=1)
+
+metadata_phys$inversegsw<-1/(metadata_phys$gsw+0.5)
+
+metadata_phys= metadata_phys[row.names(metadata_phys) %in% row.names(metadata),]
+metadata= metadata[row.names(metadata) %in% row.names(metadata_phys),]
+presence_absence_fung = presence_absence_fung[row.names(presence_absence_fung) %in% row.names(metadata_phys),]
+presence_absence_fung <-as.data.frame(presence_absence_fung )
+
+ps_fung<- phyloseq(otu_table(presence_absence_fung, taxa_are_rows=F),sample_data(metadata))
+ps_distance<-phyloseq::distance(ps_fung,"jaccard")
+
+metadata$gsw<-metadata_phys$gsw
+
+#RRPP with distance matrix----------------------------------------------------------
+of1 <- RRPP::lm.rrpp(ps_distance ~gsw+ Height+Total_Shoot_Mass+Root.Shoot+Dry_Root_Mass+Ratio.of.BrownToTotal+Ratio.of.lesion.to.total.leaf+1/TimeBlock,
+                    data = metadata, SS.type = "III",
+                    print.progress = FALSE, seed = "random", iter = 1000)
+anova(of1, effect.type = "F")
+anova(of1, effect.type = "F", error = c("Residuals","Residuals","Residuals","Residuals","Residuals","Residuals","Residuals"))
+
+set.seed(345)
+ord_fung <- phyloseq::ordinate(ps_fung, "NMDS", "jaccard")
+
+fung_vegdist<-as.data.frame(fung_vegdist)
+dist<-dist(presence_absence_fung)
+
+ordination_scores <- as.data.frame(ord_fung$points)
+#ordination_scores<-merge(ordination_scores,metadata,by="row.names")
+#centroids <- aggregate(cbind(MDS1, MDS2) ~ P.Div, data = ordination_scores, FUN = mean)
+nmds1_scores <- ordination_scores$MDS1
+nmds2_scores<-ordination_scores$MDS2
+
+metadata$nmds1<-nmds1_scores
+metadata$nmds2<-nmds2_scores
+
+c6<-c("#4477AA","#FF7F00","#CCBB44",
+       "#228833","orchid1","black","grey")
+
+
+c35 <- c(
+  "dodgerblue2", "#E31A1C", # red
+  "green4",
+  "#6A3D9A", # purple
+  "#FF7F00", # orange
+  "lavenderblush2", "gold1",
+  "skyblue2", "#FB9A99", # lt pink
+  "palegreen2",
+  "#CAB2D6", # lt purple
+  "#FDBF6F", # lt orange
+  "gray70", "khaki2",
+  "maroon", "orchid1", "deeppink1", "blue1", "steelblue4",
+  "darkturquoise", "green1", "yellow4", "yellow3",
+  "darkorange4", "brown", 'moccasin', 'mediumvioletred', 'seagreen','cadetblue1',
+                "darkolivegreen1" ,"black"
+)
+
+aggregated<-aggregate(cbind(nmds1,nmds2)~Pioneer*Diversity.Level,data=metadata,FUN=mean,na.rm=TRUE)
+aggregated_sd<-aggregate(cbind(nmds1,nmds2)~Pioneer*Diversity.Level,data=metadata,FUN=sd,na.rm=TRUE)
+aggregated$sd1<-aggregated_sd$nmds1
+aggregated$sd2<-aggregated_sd$nmds2
+ 
+
+ord_nmds<- ggplot(aggregated,aes(x=nmds1,y=nmds2,color=Pioneer,shape=Diversity.Level)) +
+  geom_point(aes(size = 5)) +
+  scale_color_manual(values=c6)+
+  scale_shape_manual(values = c(17,15,16)) +
+  theme_classic() +
+  #geom_errorbar(aes(ymin=nmds2-sd2, ymax=nmds2+sd2))+
+  #geom_errorbar(aes(xmin=nmds1-sd1, xmax=nmds1+sd1))+
+  theme(text = element_text(size = 24))+
+  labs(x="NMDS1", y="NMDS2")
+ord_nmds
+
+ord_nmds<- ggplot(metadata,aes(x=nmds1,y=nmds2,color=Pioneer,shape=Diversity.Level)) +
+  geom_point(aes(size = 5)) +
+  scale_color_manual(values=c6)+
+  scale_shape_manual(values = c(17,15,16)) +
+  theme_classic() +
+  #stat_ellipse(aes(group=Persistence),type="t")+
+  theme(text = element_text(size = 24))+
+  labs(x="NMDS1", y="NMDS2")
+ord_nmds
+
+ord_bray_nmds<- plot_ordination(ps_fung,ord_fung,aes(color=Comm))  +
+  geom_point(aes(color=Comm,size = 5)) +
+  #scale_shape_manual(values = c(21,22, 24)) +
+  #stat_ellipse(type = "t", linetype = 1, aes(group = interaction(SiteID, Treatment), color = interaction(SiteID, Treatment))) +
+  scale_color_manual(values=c35)+
+  theme_bw() +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())+
+  ggtitle("NMDS")
+ord_bray_nmds
+
+
+#Is dispersion different between treatments?
+grouping_variable <- metadata$Total_Shoot_Mass
+dispersion <- vegan::betadisper(ps_distance, grouping_variable,type="centroid")
+#permutest(dispersion, pairwise = TRUE, permutations = 99)
+boxplot(dispersion)
+```
+
+
+Use betadisper to see if dispersion is different betweeen community groups in rrpp to explain lack of pairwise relationships
+```{r}
+#Is dispersion different between treatments?
+ps_fung<- phyloseq(otu_table(presence_absence_fung,taxa_are_rows=F),sample_data(metadata))
+ps_distance<-phyloseq::distance(ps_fung,"jaccard")
+grouping_variable <- metadata$Comm
+dispersion <- vegan::betadisper(ps_distance, grouping_variable,type="centroid")
+test<-permutest(dispersion, pairwise = TRUE, permutations = 99)
+
+df <- data.frame(
+  group = dispersion$group,
+  distance = dispersion$distances
+)
+
+c35 <- c( "dodgerblue2", "#E31A1C", # red
+  "green4",
+  "#6A3D9A", # purple
+  "#FF7F00", # orange
+  "lavenderblush2", "gold1",
+  "skyblue2", "#FB9A99", # lt pink
+  "palegreen2",
+  "#CAB2D6", # lt purple
+  "#FDBF6F", # lt orange
+  "gray70", "khaki2", "maroon", "orchid1", "deeppink1", "blue1", "steelblue4","darkturquoise", "green1", "yellow4", "yellow3", "darkorange4", "brown", 'moccasin', 'mediumvioletred', 'seagreen','cadetblue1',"darkolivegreen1" ,"black"
+)
+
+ggplot(df, aes(x = group, y = distance,color=group)) +
+  geom_boxplot() +
+  geom_jitter(width = 0.1, alpha = 0.4) +
+  theme_bw() +
+  scale_color_manual(values = c35)+
+  theme(axis.text.x = element_text(angle = 90))+
+  labs(x = "Community", y = "Distance to centroid",
+       title = "Group dispersions (betadisper)")
+
+```
+
+#Graphing inoculation vs what actually remained
+```{r}
+
+graphing<-read.csv("ForCompositionBarGraph.csv",sep=",",header=TRUE)
+
+#separate by contaminant and isolate
+graphingcontam<-subset(graphing, Contam == "Y")
+graphingiso<-subset(graphing, Contam == "N")
+
+graphingiso$Presence<- as.numeric(graphingiso$Presence)  
+
+#separate isolates by community and actual
+graphingactual<-subset(graphingiso, Presence == "Y")
+  
+#replace Y with 1
+graphingiso$Contam <- gsub("N", "1", graphingiso$Contam)
+graphingiso$Contam <- as.numeric(graphingiso$Contam)  
+
+graphingcontam$Presence <- gsub("Y", "1", graphingcontam$Presence)
+graphingcontam$Presence <- gsub("N", "0", graphingcontam$Presence)
+graphingcontam$Presence<- as.numeric(graphingcontam$Presence)  
+
+graphingactual$Presence <- gsub("Y", "1", graphingactual$Presence)
+graphingactual$Presence<- as.numeric(graphingactual$Presence)
+
+c42<-c(#Stag-11659
+"#a041b6",
+#Myco-13497
+"#00c9a7",
+#Stag-13515
+"#e6429b",
+#Didy-13575
+'#2a8083',
+#Didy-13692
+"#66CCEE",
+#Didy-13761
+"#00d2fc",
+#Didy-16431
+"skyblue2",
+#Clad-16520
+"#7d4f94",
+#Epic-16592
+"darkolivegreen1",
+#Nig-16616
+"#94b7d5",
+#Epic-16637
+"green1",
+#Clad-16704
+"#af7cff",
+#Clad-16772
+"#920bf1",
+#Boer-16817
+"#8cd8df",
+#Myco-19117
+"#74ffeb",
+#Myco-19298
+"#b8ffb8",
+#Cyto-19323
+"#f3c5ff",
+#Pyr-19488
+"green3",
+#Dald-19590
+"#4fa3cb",
+#Phaeo-19593
+"#fcd8e5",
+#Xyl-21153
+'mediumvioletred',
+#Clad-21602
+"#c6afdf",
+#Xyl-21651
+"#FFAABB",
+#Phaeo-21710
+"#fc4489",
+#Xyl-21727
+"orchid1",
+#Coni-23958
+"#60fbd5",
+#Nig-24048
+"#8c8cff",
+#Nig-24411
+"#004488",
+#Pyr-24428
+"#05832e",
+#Didy-3992
+"#46ceff",
+#Chae-5501
+"#40b2ff",
+#Unk-6070
+"#b4efc8",
+#Didy-6131
+"#4fa3cb",
+#Myco-6135
+"#687f3a",
+#Didy-6163
+"#68dd9f",
+#Didy-6205
+"cadetblue1",
+#Chae-6319
+"#b7fff6",
+#Didy-6384
+"#c4fcef",
+#Rose-7778
+"#87346c",
+#Chae-7999
+"#60ffeb")
+
+
+c13<-c("dodgerblue2","green4","skyblue2",
+       "#CAB2D6","gray70","steelblue4",
+       "darkturquoise","orchid1","#d8e3c2",
+       'moccasin',"seagreen",'cadetblue1',
+       "#ffff6b")
+
+graphingiso$Comm <- factor(graphingiso$Comm , levels = c("1 High 1","1 High 2","1 High 3","2 High 1", "2 High 2", "2 High 3","3 High 1","3 High 2","3 High 3","4 High 1", "4 High 2","4 High 3", "5 High 1","5 High 2","5 High 3","1 Low 1", "1 Low 2","1 Low 3", "2 Low 1", "2 Low 2","2 Low 3","3 Low 1","3 Low 2","3 Low 3","4 Low 1", "4 Low 2","4 Low 3","5 Low 1","5 Low 2","5 Low 3"), ordered = TRUE)
+
+#graph isolate inoculant with only those that persist opaque and ones that didnt greyed out
+ggplot(graphingiso, aes(x = Comm, y =Contam, fill = Isolate, pattern=Presence2)) +
+  geom_bar(stat = "identity", position = "stack")+
+  scale_fill_manual(values=c42)+
+  geom_col_pattern(pattern_fill="gray87",pattern_density=0.3,pattern_spacing=0.015) +
+  theme_classic()+
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))+
+  #scale_y_continuous(breaks = seq(0, 10, by = 1))
+  scale_pattern_manual(values = c("stripe","none"))+
+  ylab("Community Membership")+
+  xlab("Treatment")
+
+c10<-c("peachpuff2","peru","khaki4","burlywood2",
+       "#e48344","gray70","tan",
+       "chocolate3","coral","brown",
+       'moccasin',"lightsalmon4","#c82004")
+
+#graph contam
+ggplot(graphingcontam, aes(x = Comm, y =Presence , fill = Isolate)) +
+  geom_bar(stat = "identity", position = "stack")+
+  scale_fill_manual(values=c10)+
+  theme_bw()+
+  theme_classic()+
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))+
+  ylim(0,11)+
+  ylab("Other Members")+
+  xlab("Treatments")
+
+```
+
+
+
+
+
