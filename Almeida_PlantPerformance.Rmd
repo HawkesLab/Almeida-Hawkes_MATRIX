@@ -1,0 +1,537 @@
+---
+title: "TotalHarvestAnalysis_PlantPerformance"
+output: html_document
+date: "2025-09-19"
+editor_options: 
+  chunk_output_type: console
+---
+
+The purpose of this script is to determine the relationship between plant performance outcome and initial treatment conditions and fungal traits.
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r, echo=FALSE,message=FALSE, warning=FALSE}
+library(patchwork)
+library(emmeans)
+library(Rmisc)
+library(dplyr)
+library(tidyr)
+library(car)
+library(ggplot2)
+library(RColorBrewer)
+library(lmerTest)
+library(RRPP)
+library(vegan)
+library(cluster)
+library(ggfortify)
+library(viridis)
+library(MuMIn)
+library(corrplot)
+library(regclass)
+
+```
+
+```{r }
+harvest_data<-read.csv("Total_Harvest_Data.csv",sep=",",header=TRUE,row.names = 1)
+phys_data<-read.csv("Total_Phys_Data.csv",sep=",",header=TRUE,row.names = 1)
+```
+
+#Check for correlation, normality, and homogeneity of variance
+```{r}
+shapiro.test(harvest_data$Height)
+#normal
+shapiro.test(harvest_data$Dry_Root_Mass)
+hist(harvest_data$Dry_Root_Mass)
+#not normal
+shapiro.test(harvest_data$Total_Biomass_Data)
+hist(harvest_data$Total_Biomass_Data)
+#not normal
+shapiro.test(harvest_data$Total_Shoot_Mass)
+hist(harvest_data$Total_Shoot_Mass)
+#not normal
+shapiro.test(harvest_data$Ratio.of.BrownToTotal)
+hist(harvest_data$Ratio.of.BrownToTotal)
+#not normal
+shapiro.test(harvest_data$Ratio.of.lesion.to.total.leaf)
+hist(harvest_data$Ratio.of.lesion.to.total.leaf)
+#not normal
+shapiro.test(harvest_data$Root.Shoot)
+hist(harvest_data$Root.Shoot)
+#not normal
+shapiro.test(phys_data$gsw)
+hist(phys_data$gsw)
+#not normal
+
+#Test for homogeneity of variance 
+bartlett.test(Height~Pioneer,harvest_data)
+#"if non significant this concludes that there is no proof to recommend that the variance in #plant growth is different for the treatment groups"
+bartlett.test(Height~Diversity.Level,harvest_data)
+bartlett.test(Height~Drought,harvest_data)
+
+bartlett.test(Ratio.of.lesion.to.total.leaf~Pioneer,harvest_data)#significant
+bartlett.test(Ratio.of.lesion.to.total.leaf~Diversity.Level,harvest_data)#significant
+bartlett.test(Ratio.of.lesion.to.total.leaf~Drought,harvest_data)#significant
+
+bartlett.test(Ratio.of.BrownToTotal~Pioneer,harvest_data)
+bartlett.test(Ratio.of.BrownToTotal~Diversity.Level,harvest_data)
+bartlett.test(Ratio.of.BrownToTotal~Drought,harvest_data)
+
+bartlett.test(Total_Biomass_Data~Pioneer,harvest_data)
+bartlett.test(Total_Biomass_Data~Diversity.Level,harvest_data)
+bartlett.test(Total_Biomass_Data~Drought,harvest_data)#significant
+
+
+bartlett.test(Total_Shoot_Mass~Pioneer,harvest_data)#significant
+bartlett.test(Total_Shoot_Mass~Diversity.Level,harvest_data)
+bartlett.test(Total_Shoot_Mass~Drought,harvest_data)#significant
+
+bartlett.test(Dry_Root_Mass~Pioneer,harvest_data)
+bartlett.test(Dry_Root_Mass~Diversity.Level,harvest_data)#significant
+bartlett.test(Dry_Root_Mass~Drought,harvest_data)
+
+bartlett.test(Root.Shoot~Pioneer,harvest_data)
+bartlett.test(Root.Shoot~Diversity.Level,harvest_data)#significant
+bartlett.test(Root.Shoot~Drought,harvest_data)
+
+#shoot mass is correlated with biomasss
+harvest_data<-subset(harvest_data, Diversity.Level !="Control")
+env_corr <- subset(harvest_data, select=c(TotalLeaf..,Height,BrownLeaf..,LesionLeaf,Total_Shoot_Mass,Dry_Root_Mass,Total_Biomass_Data,Root.Shoot,
+         Ratio.of.lesion.to.total.leaf,Ratio.of.BrownToTotal))                               
+
+corrplot::corrplot(cor(env_corr), method="number", type="lower", order="hclust")
+allenvcor <- all_correlations(env_corr, sorted = "magnitude") #lists all pairwise correlations
+```
+
+#Transform as appropriate
+```{r}
+hist(harvest_data$Dry_Root_Mass)
+#right skewed
+hist(sqrt(harvest_data$Dry_Root_Mass))
+shapiro.test(sqrt(harvest_data$Dry_Root_Mass))
+#significant but W is high so good enough
+
+hist(harvest_data$Total_Biomass_Data)
+#right skewed
+hist(log(harvest_data$Total_Biomass_Data))
+shapiro.test(log(harvest_data$Total_Biomass_Data))
+#not significant, fixed 
+
+hist(harvest_data$Total_Shoot_Mass)
+#right skewed
+hist(1/(harvest_data$Total_Shoot_Mass+1))
+shapiro.test(1/(harvest_data$Total_Shoot_Mass+1))
+#significant but high W
+
+hist(harvest_data$Ratio.of.BrownToTotal)
+#ratio, left skewed
+hist(asin(sqrt(harvest_data$Ratio.of.BrownToTotal)))
+shapiro.test(asin(sqrt(harvest_data$Ratio.of.BrownToTotal)))
+
+hist(harvest_data$Ratio.of.lesion.to.total.leaf)
+#right skewed
+hist(sqrt(harvest_data$Ratio.of.lesion.to.total.leaf))
+shapiro.test(sqrt(harvest_data$Ratio.of.lesion.to.total.leaf))
+
+hist(harvest_data$Root.Shoot)
+#right skewed?
+hist(sqrt(harvest_data$Root.Shoot))
+shapiro.test((sqrt(harvest_data$Root.Shoot)))
+#sig but high w
+ 
+hist(phys_data$gsw)
+#right skewed
+hist(1/(phys_data$gsw+0.5))
+shapiro.test(1/(phys_data$gsw+0.5))
+```
+
+#Transformed-Are any plant performance outcomes explained by treatments?
+```{r}
+
+#height remains untransformed
+harvest_data$sqrtDryRootMass<-sqrt(harvest_data$Dry_Root_Mass)
+harvest_data$inverseShootMass<-1/(harvest_data$Total_Shoot_Mass+1)
+harvest_data$asinBrownRatio<-asin(sqrt(harvest_data$Ratio.of.BrownToTotal))
+harvest_data$sqrtLesionRatio<-sqrt(harvest_data$Ratio.of.lesion.to.total.leaf)
+harvest_data$sqrtRoot.Shoot<-sqrt(harvest_data$Root.Shoot)
+phys_data$inversegsw<-1/(phys_data$gsw+0.5)
+
+                        
+harvest_data = harvest_data[row.names(harvest_data) %in% row.names(phys_data),]
+phys_data = phys_data[row.names(phys_data) %in% row.names(harvest_data),]
+phys_data$Comm<-harvest_data$Comm
+
+Y<-cbind(harvest_data$Height,harvest_data$sqrtDryRootMass,harvest_data$inverseShootMass,harvest_data$asinBrownRatio,harvest_data$sqrtLesionRatio,harvest_data$sqrtRoot.Shoot)
+
+man.test <- manova(Y~Comm*Drought+(1 | Microcosm)+ (1 | TimeBlock), data = harvest_data)
+
+summary(man.test)
+summary.aov(man.test)
+
+#fungal traits test
+harvest_data2<-subset(harvest_data, Diversity.Level !="Control")
+harvest_data3<-subset(harvest_data2, Diversity.Level !="Mono")
+harvest_dat4<-subset(harvest_data3, AverageIAA_Final !="NA")
+
+Y<-cbind(harvest_dat4$Height,harvest_dat4$sqrtDryRootMass,harvest_dat4$inverseShootMass,harvest_dat4$asinBrownRatio,harvest_dat4$sqrtLesionRatio,harvest_dat4$sqrtRoot.Shoot)
+man.test <- manova(Y~IAA_of_Comm+NASlope_of_Comm, data = harvest_dat4)
+
+summary(man.test)
+summary.aov(man.test)
+
+
+man.test <- manova(Y~AverageIAA_Final+AverageNA_Final, data = harvest_dat4)
+
+summary(man.test)
+summary.aov(man.test)
+
+persist_data<-read.csv("TraitsAndPersistence.csv",sep=",",header=TRUE,row.names = 1)
+
+Y2=cbind(persist_data$AverageNASlope,persist_data$AverageIAA)
+
+man.test<-manova(Y2~Persist,data=persist_data)
+
+summary(man.test)
+summary.aov(man.test)
+```
+
+## Does fungal trait distance predict plant performance?
+```{r}
+harvest_data3<-harvest_data[,c(30,33)]
+harvest_data3<-na.omit(harvest_data3)
+
+harvest_data= harvest_data[row.names(harvest_data) %in% row.names(harvest_data3),]
+
+trait_vegdist<-vegan::vegdist(harvest_data3,method="euclidean")
+trait_vegdist<-as.matrix(trait_vegdist)
+
+#initial inoculation
+of2 <- RRPP::lm.rrpp(trait_vegdist ~ Height+sqrtDryRootMass+inverseShootMass+asinBrownRatio+sqrtLesionRatio+sqrtRoot.Shoot ,
+data = harvest_data, SS.type = "III", print.progress = FALSE, seed = "random", iter = 1000)
+
+anova(of2, effect.type = "F")
+
+#final community
+harvest_data4<-harvest_data[,c(1,4)]
+harvest_data4<-na.omit(harvest_data4)
+
+trait_vegdist2<-vegan::vegdist(harvest_data4,method="euclidean")
+trait_vegdist2<-as.matrix(trait_vegdist2)
+
+harvest_data= harvest_data[row.names(harvest_data) %in% row.names(trait_vegdist2),]
+
+
+#initial inoculation
+of2 <- RRPP::lm.rrpp(trait_vegdist2 ~ Height+sqrtDryRootMass+inverseShootMass+asinBrownRatio+sqrtLesionRatio+
+                       sqrtRoot.Shoot,
+data = harvest_data, SS.type = "III", print.progress = FALSE, seed = "random", iter = 1000)
+
+anova(of2, effect.type = "F")
+```
+
+#Graph significant relationships.
+```{r}
+#plant traits 
+ggplot(harvest_data,aes(AverageIAA_Final,Height))+
+   geom_point(aes(color=Drought),size=4,stat="identity")+
+   #geom_errorbar(aes(ymin=Height-se,ymax=Height+se,color=Diversity.Level,alpha = 0.5),position=position_dodge(1))+
+   theme(panel.background = element_rect(fill = "white"))+
+   theme(axis.line = element_line(size = 0.5, colour = "black")) +
+   theme(axis.title.y = element_text(size = rel(1.5), angle = 90)) +
+   theme(axis.title.x = element_text(size = rel(1.25), angle = 0)) +
+   labs(x="Average IAA", y="Height",
+        title = "") +
+  #ylim(1.5,4.5)+
+  theme(axis.text.x=element_text(angle=0,size=15))+  
+  theme(axis.text.y=element_text(angle=0,size=15))
+
+ggplot(harvest_data,aes(AverageIAA_Final,sqrtLesionRatio))+
+   geom_point(aes(color=Drought),size=4,stat="identity")+
+   #geom_errorbar(aes(ymin=Height-se,ymax=Height+se,color=Diversity.Level,alpha = 0.5),position=position_dodge(1))+
+   theme(panel.background = element_rect(fill = "white"))+
+   theme(axis.line = element_line(size = 0.5, colour = "black")) +
+   theme(axis.title.y = element_text(size = rel(1.5), angle = 90)) +
+   theme(axis.title.x = element_text(size = rel(1.25), angle = 0)) +
+   labs(x="Average IAA", y="Prop Lesions",
+        title = "") +
+  #ylim(1.5,4.5)+
+  theme(axis.text.x=element_text(angle=0,size=15))+  
+  theme(axis.text.y=element_text(angle=0,size=15))
+
+ggplot(harvest_data2,aes(NASlope_of_Comm,sqrtDryRootMass))+
+   geom_point(aes(color=Drought),size=4,stat="identity")+
+   #geom_errorbar(aes(ymin=Height-se,ymax=Height+se,color=Diversity.Level,alpha = 0.5),position=position_dodge(1))+
+   theme(panel.background = element_rect(fill = "white"))+
+   theme(axis.line = element_line(size = 0.5, colour = "black")) +
+   theme(axis.title.y = element_text(size = rel(1.5), angle = 90)) +
+   theme(axis.title.x = element_text(size = rel(1.25), angle = 0)) +
+   labs(x="NASlope", y="sqrt Root Mass",
+        title = "") +
+  #ylim(1.5,4.5)+
+  theme(axis.text.x=element_text(angle=0,size=15))+  
+  theme(axis.text.y=element_text(angle=0,size=15))
+
+ggplot(harvest_data2,aes(NASlope_of_Comm,inverseShootMass))+
+   geom_point(aes(color=Drought),size=4,stat="identity")+
+   #geom_errorbar(aes(ymin=Height-se,ymax=Height+se,color=Diversity.Level,alpha = 0.5),position=position_dodge(1))+
+   theme(panel.background = element_rect(fill = "white"))+
+   theme(axis.line = element_line(size = 0.5, colour = "black")) +
+   theme(axis.title.y = element_text(size = rel(1.5), angle = 90)) +
+   theme(axis.title.x = element_text(size = rel(1.25), angle = 0)) +
+   labs(x="NASlope", y="inverse Shoot Mass",
+        title = "") +
+  #ylim(1.5,4.5)+
+  theme(axis.text.x=element_text(angle=0,size=15))+  
+  theme(axis.text.y=element_text(angle=0,size=15))
+
+plot<-summarySE(harvest_data,measurevar = "Height",groupvars =c("Pioneer","Diversity.Level"),na.rm=TRUE)
+plot$Diversity.Level <- factor(plot$Diversity.Level, levels=c("Control", "Mono", "Low","High"))
+
+  
+plotD<-summarySE(harvest_data,measurevar = "Height",groupvars =c("Drought"),na.rm=TRUE)  
+  ggplot(plotD,aes(Drought,Height))+
+   geom_point(size=4,stat="identity",position=position_dodge(1))+
+   geom_errorbar(aes(ymin=Height-se,ymax=Height+se),position=position_dodge(1))+
+   theme(panel.background = element_rect(fill = "white"))+
+   theme(axis.line = element_line(size = 0.5, colour = "black")) +
+   theme(axis.title.y = element_text(size = rel(1.5), angle = 90)) +
+   theme(axis.title.x = element_text(size = rel(1.25), angle = 0)) +
+  theme(axis.text.x=element_text(angle=0,size=15))+  
+  theme(axis.text.y=element_text(angle=0,size=15))+
+  labs(x = "Drought", y = "Height (cm)")
+```
+
+#Plotting height and root mass the long way
+```{r}
+
+harvest_data<-read.csv("Total_Harvest_Data.csv",sep=",",header=TRUE,row.names = 1)
+
+bbPalette <- c("black","#0072B2","#40a4dd","#a4cde4","darkblue")
+
+plot<-summarySE(harvest_data,measurevar = "Height",groupvars =c("Comm","Pioneer","Phylogenetic.Treatment","Diversity.Level") ,na.rm=TRUE)
+
+ggplot(plot,aes(Comm,Height,color=Diversity.Level))+
+  geom_point(aes(x=reorder(Comm,-Height)),stat="identity",   position=position_dodge(0.8),size=5)+
+  geom_errorbar(aes(ymin=Height-ci,ymax=Height+ci,width=0.5),size=1.5,position=position_dodge(0.8))+
+  geom_point(data=harvest_data,stat="identity",size=3,colour="grey",alpha=0.5)+
+  #geom_hline(yintercept=1,linetype="dashed", color="blue",size=1)+ 
+  #geom_hline(yintercept=0.78,linetype="dashed", color="black",size=1)+
+  scale_color_manual(values=bbPalette)+
+  theme_classic()+
+  theme(text = element_text(size = 20),
+        panel.grid.minor =  element_blank(),
+        panel.grid.major.x = element_blank(),
+        strip.placement = "outside",
+        panel.spacing = unit (0,"cm"),
+        axis.text.x = element_text(angle=90, hjust=1))+
+  xlab("Community Treatment") +
+  ylab("Height (cm)")
+
+harvest_data$sqrtDryRootMass<-sqrt(harvest_data$Dry_Root_Mass)
+plot<-summarySE(harvest_data,measurevar = "sqrtDryRootMass",groupvars =c("Comm","Pioneer","Phylogenetic.Treatment","Diversity.Level") ,na.rm=TRUE)
+
+ggplot(plot,aes(Comm,sqrtDryRootMass,color=Diversity.Level))+
+  geom_point(aes(x=reorder(Comm,-sqrtDryRootMass)),stat="identity", position=position_dodge(0.8),size=5)+
+  geom_errorbar(aes(ymin=sqrtDryRootMass-ci,ymax=sqrtDryRootMass+ci,width=0.5),size=1.5,position=position_dodge(0.8))+
+  geom_point(data=harvest_data,stat="identity",size=3,colour="grey",alpha=0.5)+
+  #geom_hline(yintercept=1,linetype="dashed", color="blue",size=1)+ 
+  #geom_hline(yintercept=0.78,linetype="dashed", color="black",size=1)+
+  scale_color_manual(values=bbPalette)+
+  theme_minimal()+
+  theme(text = element_text(size = 20),
+        panel.grid.minor =  element_blank(),
+        panel.grid.major.x = element_blank(),
+        strip.placement = "outside",
+        panel.spacing = unit (0,"cm"),
+        axis.text.x = element_text(angle=90, hjust=1))+
+  xlab("Community Treatment") +
+  ylab("sqrt(Root Mass) (g)")
+
+plot<-summarySE(harvest_data,measurevar = "Dry_Root_Mass",groupvars =c("Comm","Pioneer","Phylogenetic.Treatment","Diversity.Level") ,na.rm=TRUE)
+
+ggplot(plot,aes(Comm,Dry_Root_Mass,color=Diversity.Level))+
+  geom_point(aes(x=reorder(Comm,-Dry_Root_Mass)),stat="identity", position=position_dodge(0.8),size=5)+
+  geom_errorbar(aes(ymin=Dry_Root_Mass-ci,ymax=Dry_Root_Mass+ci,width=0.5),size=1.5,position=position_dodge(0.8))+
+  geom_point(data=harvest_data,stat="identity",size=3,colour="grey",alpha=0.5)+
+  #geom_hline(yintercept=1,linetype="dashed", color="blue",size=1)+ 
+  #geom_hline(yintercept=0.78,linetype="dashed", color="black",size=1)+
+  scale_color_manual(values=bbPalette)+
+  theme_classic()+
+  theme(text = element_text(size = 20),
+        panel.grid.minor =  element_blank(),
+        panel.grid.major.x = element_blank(),
+        strip.placement = "outside",
+        panel.spacing = unit (0,"cm"),
+        axis.text.x = element_text(angle=90, hjust=1))+
+  xlab("Community Treatment") +
+  ylab("Root Mass (g)")
+
+```
+
+## Plotting all other plant performance metrics, back transformed
+```{r}
+plot<-read.csv("plotPerformance_backtransformed.csv",sep=",",header=TRUE)
+#Harvest<-subset(Harvest,Harvest$Div != "0")
+#plot$Div <- factor(plot$Div, levels = c("0","1", "2", "4","8"))
+
+plot$Comm<-as.factor(plot$Comm)
+plot$Comm<-factor (plot$Comm, levels=c("1High1","1High2","1High3",  "2High1","2High2","2High3" , "3High1", "3High2","3High3","4High1",         "4High2","4High3","5High1","5High2","5High3","1Low1","1Low2","1Low3","2Low1" ,"2Low2","2Low3","3Low1","3Low2","3Low3",               "4Low1","4Low2","4Low3","5Low1","5Low2","5Low3","1Mono","2Mono","3Mono","4Mono","5Mono","ControlControl"))
+
+plot5<-subset(plot,plot$Trait == "sqrt Root")
+plot6<-subset(plot,plot$Trait == "sin Brown Ratio")
+plot7<-subset(plot,plot$Trait == "sqrt Root:Shoot")
+plot8<-subset(plot,plot$Trait == "sqrt Lesion Ratio")
+
+
+p1<-ggplot(plot5,aes(Comm,avg,color=Drought))+
+  geom_point(size=5,position=position_dodge(1))+
+  #geom_point(aes(x=reorder(Comm,-avg)),stat="identity", position=position_dodge(1),size=5)+
+  #geom_point(aes(color=Div),size=4,stat="identity",position=position_dodge(1))+
+  geom_errorbar(aes(ymin=ciup, ymax=cidn),position=position_dodge(1))+
+  theme(panel.background = element_rect(fill = "white"))+
+  theme(axis.line = element_line(size = 0.5, colour = "black")) +
+  theme(axis.title.y = element_text(size = rel(1.5), angle = 90)) +
+  theme(axis.title.x = element_text(size = rel(1.25), angle = 0)) +
+  xlab("Community") + ylab("Root Mass (g)") +
+  #ylim(1.5,4.5)+
+  scale_color_manual(labels=c("D-","D+"),values=c("lightgreen","sienna"))+
+  theme_classic()+
+  #theme(legend.position="none")+
+  theme(axis.text.x=element_text(angle=0,size=15))+  
+  theme(axis.text.y=element_text(angle=0,size=15))+
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+p1
+
+p2<-ggplot(plot6,aes(Comm,avg,color=Drought))+
+  geom_point(size=5,position=position_dodge(1))+
+  #geom_point(aes(x=reorder(Comm,-avg)),stat="identity", position=position_dodge(1),size=5)+
+  #geom_point(aes(color=Div),size=4,stat="identity",position=position_dodge(1))+
+  geom_errorbar(aes(ymin=ciup, ymax=cidn),position=position_dodge(1))+
+  theme(panel.background = element_rect(fill = "white"))+
+  theme(axis.line = element_line(size = 0.5, colour = "black")) +
+  theme(axis.title.y = element_text(size = rel(1.5), angle = 90)) +
+  theme(axis.title.x = element_text(size = rel(1.25), angle = 0)) +
+  xlab("Community") + ylab("Leaf Dieback") +
+  #ylim(0,1.5)+
+  scale_color_manual(labels=c("D-","D+"),values=c("lightgreen","sienna"))+
+  theme_classic()+
+  theme(legend.position="none")+
+  theme(axis.text.x=element_text(angle=0,size=15))+  
+  theme(axis.text.y=element_text(angle=0,size=15))+
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+p2
+
+p3<-ggplot(plot7,aes(Comm,avg,color=Drought))+
+  geom_point(size=5,position=position_dodge(1))+
+  #geom_point(aes(x=reorder(Comm,-avg)),stat="identity", position=position_dodge(1),size=5)+
+  #geom_point(aes(color=Div),size=4,stat="identity",position=position_dodge(1))+
+  geom_errorbar(aes(ymin=ciup, ymax=cidn),position=position_dodge(1))+
+  theme(panel.background = element_rect(fill = "white"))+
+  theme(axis.line = element_line(size = 0.5, colour = "black")) +
+  theme(axis.title.y = element_text(size = rel(1.5), angle = 90)) +
+  theme(axis.title.x = element_text(size = rel(1.25), angle = 0)) +
+  xlab("Community") + ylab("Root:Shoot") +
+  #ylim(1.5,4.5)+
+  scale_color_manual(labels=c("D-","D+"),values=c("lightgreen","sienna"))+
+  theme_classic()+
+  theme(legend.position="none")+
+  theme(axis.text.x=element_text(angle=0,size=15))+  
+  theme(axis.text.y=element_text(angle=0,size=15))+
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+p3
+
+p4<-ggplot(plot8,aes(Comm,avg,color=Drought))+
+  geom_point(size=5,position=position_dodge(1))+
+  #geom_point(aes(x=reorder(Comm,-avg)),stat="identity", position=position_dodge(1),size=5)+
+  #geom_point(aes(color=Div),size=4,stat="identity",position=position_dodge(1))+
+  geom_errorbar(aes(ymin=ciup, ymax=cidn),position=position_dodge(1))+
+  theme(panel.background = element_rect(fill = "white"))+
+  theme(axis.line = element_line(size = 0.5, colour = "black")) +
+  theme(axis.title.y = element_text(size = rel(1.5), angle = 90)) +
+  theme(axis.title.x = element_text(size = rel(1.25), angle = 0)) +
+  xlab("Community") + ylab("Leaf Lesions") +
+  #ylim(1.5,4.5)+
+  scale_color_manual(labels=c("D-","D+"),values=c("lightgreen","sienna"))+
+  theme_classic()+
+  theme(legend.position="none")+
+  theme(axis.text.x=element_text(angle=0,size=15))+  
+  theme(axis.text.y=element_text(angle=0,size=15))+
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+p4
+
+
+
+plot9<-summarySE(harvest_data,measurevar = "Height",groupvars =c("Comm","Drought") ,na.rm=TRUE)
+
+plot9$X<-factor (plot9$Comm, levels=c("1 High 1","1 High 2","1 High 3",  "2 High 1","2 High 2","2 High 3" , "3 High 1", "3 High 2","3 High 3","4 High 1", "4 High 2","4 High 3","5 High 1","5 High 2","5 High 3","1 Low 1","1 Low 2","1 Low 3","2 Low 1" ,"2 Low 2","2 Low 3","3 Low 1","3 Low 2","3 Low 3","4 Low 1","4 Low 2","4 Low 3","5 Low 1","5 Low 2","5 Low 3","1 Mono ","2 Mono ","3 Mono ","4 Mono ","5 Mono ","Control Control "))
+
+p5<-ggplot(plot9,aes(X,Height,color=Drought))+
+  geom_point(size=5,position=position_dodge(1))+
+  #geom_point(aes(x=reorder(Comm,-avg)),stat="identity", position=position_dodge(1),size=5)+
+  #geom_point(aes(color=Div),size=4,stat="identity",position=position_dodge(1))+
+  geom_errorbar(aes(ymin=Height-ci, ymax=Height+ci),position=position_dodge(1))+
+  theme(panel.background = element_rect(fill = "white"))+
+  theme(axis.line = element_line(size = 0.5, colour = "black")) +
+  theme(axis.title.y = element_text(size = rel(1.5), angle = 90)) +
+  theme(axis.title.x = element_text(size = rel(1.25), angle = 0)) +
+  xlab("Community") + ylab("Height (cm)") +
+  #ylim(1.5,4.5)+
+  scale_color_manual(labels=c("D-","D+"),values=c("lightgreen","sienna"))+
+  theme_classic()+
+  theme(legend.position="none")+
+  theme(axis.text.x=element_text(angle=0,size=15))+  
+  theme(axis.text.y=element_text(angle=0,size=15))+
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+p5
+
+plot10<-summarySE(harvest_data,measurevar = "Total_Shoot_Mass",groupvars =c("Comm","Drought") ,na.rm=TRUE)
+
+plot10$X<-factor (plot10$Comm, levels=c("1 High 1","1 High 2","1 High 3",  "2 High 1","2 High 2","2 High 3" , "3 High 1", "3 High 2","3 High 3","4 High 1", "4 High 2","4 High 3","5 High 1","5 High 2","5 High 3","1 Low 1","1 Low 2","1 Low 3","2 Low 1" ,"2 Low 2","2 Low 3","3 Low 1","3 Low 2","3 Low 3","4 Low 1","4 Low 2","4 Low 3","5 Low 1","5 Low 2","5 Low 3","1 Mono ","2 Mono ","3 Mono ","4 Mono ","5 Mono ","Control Control "))
+
+
+p6<-ggplot(plot10,aes(X,Total_Shoot_Mass,color=Drought))+
+  geom_point(size=5,position=position_dodge(1))+
+  #geom_point(aes(x=reorder(Comm,-avg)),stat="identity", position=position_dodge(1),size=5)+
+  #geom_point(aes(color=Div),size=4,stat="identity",position=position_dodge(1))+
+  geom_errorbar(aes(ymin=Total_Shoot_Mass-ci, ymax=Total_Shoot_Mass+ci),position=position_dodge(1))+
+  theme(panel.background = element_rect(fill = "white"))+
+  theme(axis.line = element_line(size = 0.5, colour = "black")) +
+  theme(axis.title.y = element_text(size = rel(1.5), angle = 90)) +
+  theme(axis.title.x = element_text(size = rel(1.25), angle = 0)) +
+  xlab("Community") + ylab("Shoot Mass (g)") +
+  #ylim(1.5,4.5)+
+  scale_color_manual(labels=c("D-","D+"),values=c("lightgreen","sienna"))+
+  theme_classic()+
+  theme(legend.position="none")+
+  theme(axis.text.x=element_text(angle=0,size=15))+  
+  theme(axis.text.y=element_text(angle=0,size=15))+
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+p6
+
+(p1+p2+p3)/(p4+p5+p6)
+
+plot8<-summarySE(phys_data,measurevar = "gsw",groupvars =c("X","Drought") ,na.rm=TRUE)
+plot8$X<-factor (plot8$X, levels=c("1 High 1","1 High 2","1 High 3",  "2 High 1","2 High 2","2 High 3" , "3 High 1", "3 High 2","3 High 3","4 High 1", "4 High 2","4 High 3","5 High 1","5 High 2","5 High 3","1 Low 1","1 Low 2","1 Low 3","2 Low 1" ,"2 Low 2","2 Low 3","3 Low 1","3 Low 2","3 Low 3","4 Low 1","4 Low 2","4 Low 3","5 Low 1","5 Low 2","5 Low 3","1 Mono ","2 Mono ","3 Mono ","4 Mono ","5 Mono ","Control Control "))
+
+p7<-ggplot(plot8,aes(X,gsw,color=Drought))+
+  geom_point(size=5,position=position_dodge(1))+
+  #geom_point(aes(x=reorder(Comm,-avg)),stat="identity", position=position_dodge(1),size=5)+
+  #geom_point(aes(color=Div),size=4,stat="identity",position=position_dodge(1))+
+  geom_errorbar(aes(ymin=gsw-ci, ymax=gsw+ci),position=position_dodge(1))+
+  theme(panel.background = element_rect(fill = "white"))+
+  theme(axis.line = element_line(size = 0.5, colour = "black")) +
+  theme(axis.title.y = element_text(size = rel(1.5), angle = 90)) +
+  theme(axis.title.x = element_text(size = rel(1.25), angle = 0)) +
+  xlab("Community") + ylab("Stomatal Conductance (mmol m −2 s −1)") +
+  #ylim(1.5,4.5)+
+  scale_color_manual(labels=c("D-","D+"),values=c("lightgreen","sienna"))+
+  theme_classic()+
+  theme(legend.position="none")+
+  theme(axis.text.x=element_text(angle=0,size=15))+  
+  theme(axis.text.y=element_text(angle=0,size=15))+
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+p7
+```
+
