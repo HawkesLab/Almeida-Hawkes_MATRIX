@@ -17,12 +17,19 @@ Triticum aestivum (AGS2000) was grown with fungal synthetic communities to inves
 
 ## File list
 Total_Harvest_Data.csv
+
 Total_Phys_Data.csv
+
 plotPerformance_backtransformed.csv
+
 presence_absence_OTUtable.csv
+
 ForCompositionBarGraph.csv
+
 TraitsandPersistence.csv
+
 Almeida_FinalComAnalysis.Rmd
+
 Almeida_PlantPerformance.Rmd
 
 ## File descriptions
