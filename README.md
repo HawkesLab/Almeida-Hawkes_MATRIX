@@ -16,6 +16,12 @@ brianna.k.almeida@gmail.com
 Triticum aestivum (AGS2000) was grown with fungal synthetic communities to investigate how fungal assembly mechanisms (priority, diversity) impacted the plants response to drought. All fungi were ascomycetes isolated from wheat fields from 7 fields across North Carolina. The communities contained a single pioneer fungus applied first, followed by low diversity (3 fungi) or high diversity (9 fungi) community inoculations. We imposed drought and measured plant growth and physiological performance.  Plants were grown in microcosms to prevent cross-contamination between fungal treatments. Treatments were replicated 6 times, including controls of sterile water. Prior to harvest, we measured height, leaf dieback, stomatal conductance, and severity of disease symptoms if there were any lesions present on the plants. After harvest we measured dry shoot and root mass. Final fungal community composition was assessed from leaf tissue with amplicon sequencing to understand synthetic community persistence and its impact on plant performance. 
 
 ## File list
+AllMergedconcat.seq
+denovo_treeWNovSamples.nwk
+Almeida_FinalComAnalysis.Rmd
+Almeida_FinalComAnalysis.pdf
+Almeida_PlantPerformance.Rmd
+Almeida_PlantPerformance.pdf
 Total_Harvest_Data.csv
 Total_Phys_Data.csv
 plotPerformance_backtransformed.csv
@@ -26,6 +32,17 @@ Almeida_FinalComAnalysis.Rmd
 Almeida_PlantPerformance.Rmd
 
 ## File descriptions
+AllMergedconcat.seq – FASTA file containing concatenated sequences of actin, beta tubulin, ITS, LSU, and transcription factor 1 for each fungal isolate in the experiment and reference sequences acquired from the NCBI database
+
+denovo_treeWNovSamples.nwk -NWK tree file of AllMergedconcat.seq for calculating cophentic distances of synthetic community treatments
+
+Almeida_FinalComAnalysis.Rmd and Almeida_FinalComAnalysis.pdf - R markdown script and knitted file for analyses related to final foliar community composition and graphing results
+
+Almeida_PlantPerformance.Rmd and Almeida_PlantPerformance.pdf - R markdown script and knitted file for analyses of plant performance data and initial community inoculation and graphing results
+
+Almeida_SelectingSynComs.Rmd and Almeida_SelectingSynComs.pdg - R markdown script and knitted file for selecting synthetic community treatments based on phylogenetic distances 
+
+
 Total_Harvest_Data.csv- Plant responses and fungal trait measurements based on fungal community composition
 Variable|	Description|	Units
 | --- | --- | --- |
