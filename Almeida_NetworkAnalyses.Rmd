@@ -1,0 +1,137 @@
+---
+title: "NetworkAnalysis"
+author: "Brianna Almeida"
+date: "2026-08-18"
+output: pdf_document
+---
+
+```{r setup, include=FALSE,message=FALSE, warning=FALSE}
+library(phyloseq)
+library(ape)
+library(dplyr)
+library(tidyverse)
+library(readxl)
+library(phytools)
+library(phangorn)
+library(Biostrings)
+library(ggplot2)
+library(Rmisc)
+library(patchwork)
+library(agricolae)
+library(RRPP)
+```
+
+#test: is relative abundance in the field associated with isolate persistence?
+```{r}
+abundance<-read.csv("otu_table_for_cooccurence.csv", row.names = 1,header=TRUE)
+metadata<-read.csv("netcomi_filtered_nodelist.csv", header=TRUE, row.names = 1)
+
+metadata = metadata[row.names(metadata) %in% row.names(abundance),]
+abundance = abundance[row.names(abundance) %in% row.names(metadata),]
+abundance <- abundance[rownames(metadata),]
+metadata <- metadata[rownames(abundance),]
+abundance<-as.matrix(abundance)
+
+of2 <- RRPP::lm.rrpp(abundance ~ Persist,
+data = metadata, SS.type = "III", print.progress = FALSE, seed = "random", iter = 1000)
+ 
+anova(of2, effect.type = "F")
+
+rel_abund_subsetance <- sweep(abundance, 2, colSums(abundance), "/")
+#write.csv(rel_abund_subsetance,"relative_abundance_include_All.csv")
+
+rel_abund<-read.csv("relative_abundance_include_All.csv", row.names = 1,header=TRUE)
+rel_abund_subset<-read.csv("relative_abundance_for_heatmap.csv", row.names = 1,header=TRUE)
+
+metadata = metadata[row.names(metadata) %in% row.names(rel_abund_subset),]
+rel_abund_subset = rel_abund_subset[row.names(rel_abund_subset) %in% row.names(metadata),]
+rel_abund_subset <- rel_abund_subset[rownames(metadata),]
+metadata <- metadata[rownames(rel_abund_subset),]
+rel_abund_subset<-as.matrix(rel_abund_subset)
+
+
+of3 <- RRPP::lm.rrpp(rel_abund_subset ~ Persist,
+data = metadata, SS.type = "III", print.progress = FALSE, seed = "random", iter = 1000)
+ 
+anova(of3, effect.type = "F")
+```
+
+#Check the output from Cytoscape including closeness centrality, between centrality, and degree
+```{r}
+node_list<-read.csv("netcomi_filtered_nodelist.csv", header=TRUE, row.names = 1)
+#remove Contaminants and rename ASVs 
+node_list<-subset(node_list,Persist != "Contaminant")
+
+Y<-cbind(node_list$Degree,node_list$BetweennessCentrality,node_list$ClosenessCentrality,node_list$Radiality)
+
+man.test<- manova(Y~ Persist,data = node_list)
+
+summary(man.test)
+summary.aov(man.test)
+
+post_hoc<-aov(Degree~Persist,data=node_list)
+summary(post_hoc)
+results<-HSD.test(post_hoc,"Persist",group=TRUE)
+print(results$groups)
+
+post_hoc<-aov(ClosenessCentrality~Persist,data=node_list)
+summary(post_hoc)
+results<-HSD.test(post_hoc,"Persist",group=TRUE)
+print(results$groups)
+
+post_hoc<-aov(Radiality~Persist,data=node_list)
+summary(post_hoc)
+results<-HSD.test(post_hoc,"Persist",group=TRUE)
+print(results$groups)
+
+node_list$Persist<-factor(node_list$Persist,levels=c("Untargeted ASVs","Not Persistent","Persistent"))
+
+plot<-summarySE(node_list,measurevar = "Degree",groupvars =c("Persist"),na.rm=TRUE)
+
+p1<-ggplot(plot, aes(x = Persist, y =Degree)) +
+  geom_point(size=3)+
+  #scale_fill_manual(values=c42)+
+  theme_classic()+
+  geom_errorbar(aes(ymin=Degree-sd,ymax=Degree+sd))+
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))+
+  ylab("Degree")+
+  xlab("Category")
+
+plot2<-summarySE(node_list,measurevar = "ClosenessCentrality",groupvars =c("Persist"),na.rm=TRUE)
+
+p2<-ggplot(plot2, aes(x = Persist, y =ClosenessCentrality)) +
+  geom_point(size=3)+
+  #scale_fill_manual(values=c42)+
+  theme_classic()+
+  geom_errorbar(aes(ymin=ClosenessCentrality-sd,ymax=ClosenessCentrality+sd))+
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))+
+  ylab("Closeness Centrality")+
+  xlab("Category")
+
+plot3<-summarySE(node_list,measurevar = "BetweennessCentrality",groupvars =c("Persist"),na.rm=TRUE)
+
+p3<-ggplot(plot3, aes(x = Persist, y =BetweennessCentrality)) +
+  geom_point(size=3)+
+  #scale_fill_manual(values=c42)+
+  theme_classic()+
+  geom_errorbar(aes(ymin=BetweennessCentrality-sd,ymax=BetweennessCentrality+sd))+
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))+
+  ylab("Betweenness Centrality")+
+  xlab("Category")
+
+plot4<-summarySE(node_list,measurevar = "Radiality",groupvars =c("Persist"),na.rm=TRUE)
+
+p4<-ggplot(plot4, aes(x = Persist, y =Radiality)) +
+  geom_point(size=3)+
+  #scale_fill_manual(values=c42)+
+  theme_classic()+
+  geom_errorbar(aes(ymin=Radiality-sd,ymax=Radiality+sd))+
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))+
+  ylab("Radiality")+
+  xlab("Category")
+
+(p1|p2)/
+  (p3|p4)
+
+```
+
