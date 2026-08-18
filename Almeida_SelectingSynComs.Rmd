@@ -1,0 +1,666 @@
+---
+title: "CommunityCodeForBA"
+author: "Rachel Hammer edited by Brianna Almeida"
+date: "2024-01-24"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+# Load Packages
+```{r,warning = FALSE, message = FALSE}
+library(phyloseq)
+library(dplyr)
+library(tidyverse)
+library(readxl)
+library(DECIPHER); 
+library(phangorn); packageVersion("phangorn")
+library(phylotools); packageVersion("phylotools")
+library(picante); packageVersion("picante")
+library(philr); packageVersion("philr")
+library(ape); packageVersion("ape")
+library(plyr); packageVersion("plyr")
+library(glmnet); packageVersion("glmnet")
+library(ggplot2); packageVersion("ggplot2")
+library(ggtree); packageVersion("ggtree")
+library(ggpubr); packageVersion("ggpubr")
+```
+
+#Load in a tree
+```{r,warning = FALSE, message = FALSE}
+tree<-phytools::read.newick("denovo_treeWNovSamples.nwk")
+PatristicDistMatrix<-cophenetic.phylo(tree)
+
+```
+
+## Ultrametric Tree
+```{r,warning = FALSE, message = FALSE}
+# load tree
+#load("new_tree.rds")
+tree<-phytools::read.newick("denovo_treeWNovSamples.nwk")
+tree_ultra = phytools::force.ultrametric(tree)
+is.ultrametric(tree_ultra) #TRUE
+
+```
+
+##Graphing Trees
+```{r}
+ggtree(tree_ultra) + 
+geom_tiplab(offset=0.02, geom= "text",size=2)+
+geom_nodelab(size =2 , col= "red",hjust=1)+
+geom_treescale(y=10, color='black', linesize=1, offset=3) +
+xlim(0,2)
+
+```
+
+## Phylogenetic Distance Matrix
+```{r, echo = TRUE, warning = FALSE, message=FALSE}
+
+# Create a Phylogenetic Resemblance Matrix
+phydist <- cophenetic.phylo(tree_ultra)
+phydist2 <- cophenetic.phylo(tree)
+
+#Is the cophenetic distances euclidean?
+phydist.dist <- as.dist(phydist)
+ade4::is.euclid(phydist.dist) #TRUE
+
+phydist.dist2 <- as.dist(phydist2)
+ade4::is.euclid(phydist.dist2) #FALSE
+sqrt.phylo.dist <- sqrt(phydist2)
+phydist.dist2 <- as.dist(sqrt.phylo.dist)
+ade4::is.euclid(phydist.dist2) #TRUE - fixed!
+
+save(phydist, file="phydist_2023_12_12.rds")
+
+```
+
+### Subsetting isolates from matrix
+```{r}
+load("phydist_2023_12_12.rds")
+
+# Currently matrix is in wide format and long gives easier-to-see pairwise distances. First, subset to root assay isolates so the long format isn't ridiculously long
+
+phydist.df = as.data.frame(phydist)
+phydist.df$x1 = row.names(phydist) 
+
+fungi<-c(
+"n03992",
+"n05501",
+"n06070",
+"n06131",
+"n06135",
+"n06163",
+"n06205",
+"n06319",
+"n06384",
+"n07778",
+"n07999",
+"n11659",
+"n13497",
+"n13500",
+"n13515",
+"n13575",
+"n13692",
+"n13761",
+"n16431",
+"n16520",
+"n16592",
+"n16616",
+"n16637",
+"n16704",
+"n16772",
+"n16817",
+"n19117",
+"n19298",
+"n19323",
+"n19488",
+"n19590",
+"n19593",
+"n21153",
+"n21602",
+"n21651",
+"n21710",
+"n21727",
+"n23958",
+"n24048",
+"n24411"
+)
+
+## filter to those in list of your isolates (i.e. "fungi")
+
+#phydist.sub<-phydist.df[-c(1:25,78),-c(1:25,78)]
+
+
+phydist.sub<-filter(phydist.df, x1 %in% fungi)
+
+#row.names(phydist.sub) = phydist.sub$X1
+
+
+phydist.sub2= phydist.sub[,colnames(phydist.sub) %in% row.names(phydist.sub)]
+
+# change wide to long format -- change the 347 to be 1 less (i think) than # of columns
+#long.phydist.sub = gather(phydist.sub, "X2", "Dist_phylo")
+
+# Keep only isolates in column names
+#long.phydist.sub.2 = filter(long.phydist.sub, X2 %in% fungi)
+
+# change long to wide format
+#wide.phydist.sub2 = spread(long.phydist.sub.2, X2, Dist_phylo)
+
+# format df:
+#row.names(wide.phydist.sub2) = wide.phydist.sub2$X1
+#wide.phydist.sub2$X1 = NULL
+```
+
+
+Some Possible Combinations of 10 Fungi, pool includes 42 fungi, all possible combinations of 10 would be 3190187286 and this crashes R, therefore we will use a for loop to randomly sample to make communities of 10 instead
+```{r}
+# make vector of isolate names
+fungi <- unique(colnames(phydist.sub2))
+
+fungi<-as.data.frame(fungi)
+#fungi$fungi<as.vector(fungi)
+
+# Set the number of repetitions
+num_repetitions <- 100000
+
+# Create a matrix to store the results
+result_matrix <- matrix(nrow = num_repetitions, ncol = 10)
+
+# Repeat the process 50 times
+for (i in 1:num_repetitions) {
+  # Sample values from the 'Value' column
+  sampled_values <- sample(fungi$fungi, 10, replace = FALSE)
+  
+  # Store the sampled values in the result matrix
+  result_matrix[i, ] <- sampled_values
+}
+
+# Convert the result matrix to a data frame if needed
+result_df <- as.data.frame(result_matrix)
+
+# Display the result
+View(result_df)
+
+#library(combinat)
+#combinations of 9 fungi, no repeating within group
+#comms <- as.data.frame(combn(fungi, 10))
+
+#Calculate percentage of matches between communities, remove communities that match others with greater than 40% of the community (4/10), This step takes some time.
+
+# Create an empty vector to store column names for removal
+result_df<-t(result_df)
+# random select 10000 combinations
+comms2 <-result_df[1:10, sample(ncol(result_df), 10000)]
+comms2<-as.data.frame(comms2)
+columns_to_remove <- c()
+threshold<-0.4
+# Loop through each column
+for (i in 1:(ncol(comms2) - 1)) {
+  for (j in (i + 1):ncol(comms2)) {
+    # Calculate the match percentage
+    match_percentage <- mean(comms2[, i] == comms2[, j])
+    
+    # If the match percentage exceeds the threshold, mark the column for removal
+    if (match_percentage >= threshold) {
+      if (!(names(comms2)[i] %in% columns_to_remove)) {
+        columns_to_remove <- c(columns_to_remove, names(comms2)[i])
+      }
+      if (!(names(comms2)[j] %in% columns_to_remove)) {
+        columns_to_remove <- c(columns_to_remove, names(comms2)[j])
+      }
+    }
+  }
+}
+
+ # Remove the marked columns from the data frame
+`%ni%` <- Negate(`%in%`)
+comms3<-subset(comms2,select = names(comms2) %ni% columns_to_remove)
+
+```
+
+# Community Phylogenetic Distances
+```{r}
+# create each distance matrix for communities and calculate the average dissimilarity
+combo4.phy_avg = list()
+for (i in 1:ncol(comms3)){
+  phy.matrix = phydist.sub[c(comms3[,i]),c(comms3[,i])]
+  combo4.phy_avg[i] = mean(phy.matrix[upper.tri(phy.matrix)])
+}
+
+# create each distance matrix for communities and calculate the standard deviation of dissimilarity
+combo4.phy_std = list()
+for (i in 1:ncol(comms3)){
+  phy.matrix = phydist.sub[c(comms3[,i]),c(comms3[,i])]
+  combo4.phy_std[i] = sd(phy.matrix[upper.tri(phy.matrix)])
+}
+
+# look at min, max, median of the phylo distance avg and std deviation for the communities
+Reduce(min, combo4.phy_std)
+Reduce(max, combo4.phy_std)
+Reduce(median, combo4.phy_std)
+
+Reduce(min, combo4.phy_avg)
+Reduce(max, combo4.phy_avg)
+Reduce(median, combo4.phy_avg)
+
+```
+
+# Plot Community Dissimilarity
+
+## Phylogenetic Distance
+```{r}
+pd_avg <- unlist(combo4.phy_avg)
+pd_std <- unlist(combo4.phy_std)
+
+pd_plotdata <- cbind(pd_avg, pd_std)
+pd_plotdata <- as.data.frame(pd_plotdata)
+
+pd_plot<-ggplot(data= pd_plotdata, aes(x=row.names(pd_plotdata), y=pd_avg))+
+  geom_point()+
+  theme_classic()+
+  xlab("Community")+ylab("Phylogenetic Distance")
+  geom_pointrange(aes(ymin = pd_avg-pd_std, ymax = pd_avg+pd_std))
+
+pd_plot
+
+#pdf("ave_phylodist_12_13_2023.pdf")
+#pd_plot
+#dev.off()
+
+#Remove communities that don't contain pioneers
+
+to_keep <- c("n19323","n19298","n19590","n16704","n11659")
+comms3.5<-t(comms3)
+comms3.5<-as.data.frame(comms3.5)
+`%ni%` <- Negate(`%in%`)
+comms4<-subset(comms3.5,select=names(comms3.5) %ni% to_keep)
+
+
+```
+
+# Put together data frame of isolates + phylo data
+```{r}
+TreatComb4.TreatCombo4 = list()
+for (i in 1:ncol(comms3)){
+  TreatComb4.TreatCombo4[i] = as.data.frame(list(comms3[,i]))
+}
+
+TreatComb4.TreatCombo4.df = as.data.frame(TreatComb4.TreatCombo4, col.names = 1:length(TreatComb4.TreatCombo4))
+TreatComb4.df.t = as.data.frame(t(TreatComb4.TreatCombo4.df))
+colnames(TreatComb4.df.t) = c("Isol_1", "Isol_2", "Isol_3", "Isol_4","Isol_5","Isol_6","Isol_7","Isol_8","Isol_9","Isol_10")
+row.names(TreatComb4.df.t) = row.names(pd_std)
+
+df4 = cbind(pd_avg, pd_std, TreatComb4.df.t)
+```
+
+# Random Selection
+```{r}
+
+#Bin communities into 3 phylogenetic categories Low (0.04934741-0.10),medium(0.11-0.15),high(0.16-0.2012841)
+
+df5 <- df4 %>%
+  mutate(Category = case_when(
+    pd_avg >= 0.04 & pd_avg < 0.11 ~ "Low",
+    pd_avg >= 0.12 & pd_avg < 0.135 ~ "Medium",
+    pd_avg >= 0.149 ~ "High",
+    TRUE ~ NA_character_
+  ))
+
+#Randomly select 50 communities that contain the pioneers, chose the first that are in the high medium or low bin
+
+pioneer1<-"n19323"
+pioneer2<-"n19298"
+pioneer3<-"n19590"
+pioneer4<-"n16704"
+pioneer5<-"n11659"
+
+#Show all high communities, randomly select one for each pioneer
+selected_rows_high <- subset(df5, Category == "High")
+print(selected_rows_high)
+
+selected_rows_high_1 <- selected_rows_high %>%
+  filter(if_any(everything(), ~. == pioneer1)) %>%
+  sample_n(1)
+selected_rows_high_2 <- selected_rows_high %>%
+  filter(if_any(everything(), ~. == pioneer2)) %>%
+  sample_n(1)
+selected_rows_high_3 <- selected_rows_high %>%
+  filter(if_any(everything(), ~. == pioneer3)) %>%
+  sample_n(1)
+selected_rows_high_4 <- selected_rows_high %>%
+  filter(if_any(everything(), ~. == pioneer4)) %>%
+  sample_n(1)
+selected_rows_high_5 <- selected_rows_high %>%
+  filter(if_any(everything(), ~. == pioneer5)) %>%
+  sample_n(1)
+#show all medium communities, randomly select one for each pioneer
+selected_rows_med <- subset(df5, Category == "Medium")
+print(selected_rows_med)
+
+selected_rows_med_1 <- selected_rows_med %>%
+  filter(if_any(everything(), ~. == pioneer1)) %>%
+  sample_n(1)
+selected_rows_med_2 <- selected_rows_med %>%
+  filter(if_any(everything(), ~. == pioneer2)) %>%
+  sample_n(1)
+selected_rows_med_3 <- selected_rows_med %>%
+  filter(if_any(everything(), ~. == pioneer3)) %>%
+  sample_n(1)
+selected_rows_med_4 <- selected_rows_med %>%
+  filter(if_any(everything(), ~. == pioneer4)) %>%
+  sample_n(1)
+selected_rows_med_5 <- selected_rows_med %>%
+  filter(if_any(everything(), ~. == pioneer5)) %>%
+  sample_n(1)
+#Show communities in Low category, randomly select one for each pioneer
+selected_rows_low <- subset(df5, Category == "Low")
+print(selected_rows_low)
+
+selected_rows_low_1 <- selected_rows_low %>%
+  filter(if_any(everything(), ~. == pioneer1)) %>%
+  sample_n(1)
+selected_rows_low_2 <- selected_rows_low %>%
+  filter(if_any(everything(), ~. == pioneer2)) %>%
+  sample_n(1)
+selected_rows_low_3 <- selected_rows_low %>%
+  filter(if_any(everything(), ~. == pioneer3)) %>%
+  sample_n(1)
+selected_rows_low_4 <- selected_rows_low %>%
+  filter(if_any(everything(), ~. == pioneer4)) %>%
+  sample_n(1)
+selected_rows_low_5 <- selected_rows_low %>%
+  filter(if_any(everything(), ~. == pioneer5)) %>%
+  sample_n(1)
+
+```
+
+## Repeat Community creation but for low diversity communities with only 4 members
+```{r}
+
+load("phydist_2023_12_12.rds")
+
+# Currently matrix is in wide format and long gives easier-to-see pairwise distances. First, subset to root assay isolates so the long format isn't ridiculously long
+
+phydist.df = as.data.frame(phydist)
+phydist.df$x1 = row.names(phydist) 
+
+fungi<-c(
+"n03992",
+"n05501",
+"n06070",
+"n06131",
+"n06135",
+"n06163",
+"n06205",
+"n06319",
+"n06384",
+"n07778",
+"n07999",
+"n11659",
+"n13497",
+"n13500",
+"n13515",
+"n13575",
+"n13692",
+"n13761",
+"n16431",
+"n16520",
+"n16592",
+"n16616",
+"n16637",
+"n16704",
+"n16772",
+"n16817",
+"n19117",
+"n19298",
+"n19323",
+"n19488",
+"n19590",
+"n19593",
+"n21153",
+"n21602",
+"n21651",
+"n21710",
+"n21727",
+"n23958",
+"n24048",
+"n24411"
+)
+
+## filter to those in list of your isolates (i.e. "fungi")
+
+#phydist.sub<-phydist.df[-c(1:25,78),-c(1:25,78)]
+
+
+phydist.sub<-filter(phydist.df, x1 %in% fungi)
+
+#row.names(phydist.sub) = phydist.sub$X1
+
+phydist.sub2= phydist.sub[,colnames(phydist.sub) %in% row.names(phydist.sub)]
+
+# change wide to long format -- change the 347 to be 1 less (i think) than # of columns
+#long.phydist.sub = gather(phydist.sub, "X2", "Dist_phylo")
+
+# Keep only isolates in column names
+#long.phydist.sub.2 = filter(long.phydist.sub, X2 %in% fungi)
+
+# change long to wide format
+#wide.phydist.sub2 = spread(long.phydist.sub.2, X2, Dist_phylo)
+
+# format df:
+#row.names(wide.phydist.sub2) = wide.phydist.sub2$X1
+#wide.phydist.sub2$X1 = NULL
+
+#Some Possible Combinations of 4 Fungi, pool includes 41 fungi, all possible combinations of 4 would be 101270 and this does not crash R and therefore can do all of them
+
+# make vector of isolate names
+fungi <- unique(colnames(phydist.sub2))
+
+fungi<-as.data.frame(fungi)
+#fungi$fungi<as.vector(fungi)
+
+# Set the number of repetitions
+num_repetitions <- 101270
+
+# Create a matrix to store the results
+result_matrix_low <- matrix(nrow = num_repetitions, ncol = 4)
+
+# Repeat the process
+for (i in 1:num_repetitions) {
+  # Sample values from the 'Value' column
+  sampled_values <- sample(fungi$fungi, 4, replace = FALSE)
+  
+  # Store the sampled values in the result matrix
+  result_matrix_low[i, ] <- sampled_values
+}
+
+# Convert the result matrix to a data frame if needed
+result_df_low <- as.data.frame(result_matrix_low)
+
+# Display the result
+View(result_df_low)
+
+
+##Decided not to do this step and when final communities are chosen just avoid those that contain similar/same community members
+#Calculate percentage of matches between communities, remove communities that match others with greater than 40% of the community (4/10), This step takes some time.
+
+# Create an empty vector to store column names for removal
+result_df_low<-t(result_df_low)
+
+comms2 <-result_df_low[1:4, sample(ncol(result_df_low), 101270)]
+comms2<-as.data.frame(result_df_low)
+
+columns_to_remove <- c()
+threshold<-0.4
+# Loop through each column
+for (i in 1:(ncol(comms2) - 1)) {
+  for (j in (i + 1):ncol(comms2)) {
+    # Calculate the match percentage
+    match_percentage <- mean(comms2[, i] == comms2[, j])
+    
+    # If the match percentage exceeds the threshold, mark the column for removal
+    if (match_percentage >= threshold) {
+      if (!(names(comms2)[i] %in% columns_to_remove)) {
+        columns_to_remove <- c(columns_to_remove, names(comms2)[i])
+      }
+      if (!(names(comms2)[j] %in% columns_to_remove)) {
+        columns_to_remove <- c(columns_to_remove, names(comms2)[j])
+      }
+    }
+  }
+}
+
+ # Remove the marked columns from the data frame
+`%ni%` <- Negate(`%in%`)
+comms3<-subset(comms2,select = names(comms2) %ni% columns_to_remove)
+
+#Remove communities that don't contain pioneers
+
+to_keep <- c("n19323","n19298","n19590","n16704","n11659")
+comms3.5<-t(comms2)
+comms3.5<-t(comms3.5)
+comms3.5<-as.data.frame(comms3.5)
+comms4 <- comms3.5 %>%
+  rowwise() %>%
+  filter(any(c(V1,V2,V3,V4) %in% to_keep))
+
+# create each distance matrix for communities and calculate the average dissimilarity
+comms4<-t(comms4)
+combo4.phy_avg = list()
+
+for (i in 1:ncol(comms4)){
+  phy.matrix = phydist.sub[c(comms4[,i]),c(comms4[,i])]
+  combo4.phy_avg[i] = mean(phy.matrix[upper.tri(phy.matrix)])
+}
+
+# create each distance matrix for communities and calculate the standard deviation of dissimilarity
+combo4.phy_std = list()
+for (i in 1:ncol(comms4)){
+  phy.matrix = phydist.sub[c(comms4[,i]),c(comms4[,i])]
+  combo4.phy_std[i] = sd(phy.matrix[upper.tri(phy.matrix)])
+}
+
+# look at min, max, median of the phylo distance avg and std deviation for the communities
+Reduce(min, combo4.phy_std)
+Reduce(max, combo4.phy_std)
+Reduce(median, combo4.phy_std)
+
+Reduce(min, combo4.phy_avg)
+Reduce(max, combo4.phy_avg)
+Reduce(median, combo4.phy_avg)
+
+#plot average distances
+pd_avg <- unlist(combo4.phy_avg)
+pd_std <- unlist(combo4.phy_std)
+
+pd_plotdata <- cbind(pd_avg, pd_std)
+pd_plotdata <- as.data.frame(pd_plotdata)
+
+pd_plot<-ggplot(data= pd_plotdata, aes(x=row.names(pd_plotdata), y=pd_avg))+
+  geom_point()+
+  theme_classic()+
+  xlab("Community")+ylab("Phylogenetic Distance")
+  geom_pointrange(aes(ymin = pd_avg-pd_std, ymax = pd_avg+pd_std))
+
+pd_plot
+
+
+# Put together data frame of isolates + phylo data
+comms4<-as.data.frame(comms4)
+TreatComb4.TreatCombo4 = list()
+for (i in 1:ncol(comms4)){
+  TreatComb4.TreatCombo4[i] = as.data.frame(list(comms4[,i]))
+}
+
+TreatComb4.TreatCombo4.df = as.data.frame(TreatComb4.TreatCombo4, col.names = 1:length(TreatComb4.TreatCombo4))
+TreatComb4.df.t = as.data.frame(t(TreatComb4.TreatCombo4.df))
+colnames(TreatComb4.df.t) = c("Isol_1", "Isol_2", "Isol_3", "Isol_4")
+row.names(TreatComb4.df.t) = row.names(pd_std)
+
+df4 = cbind(pd_avg, pd_std, TreatComb4.df.t)
+
+#Bin communities into 3 phylogenetic categories Low,Medium,High. The categories have weried distributions because pioneer 1 lowest average phylogenetic distance was at .104
+
+df5 <- df4 %>%
+  mutate(Category = case_when(
+    pd_avg >= 0.013 & pd_avg < 0.107 ~ "Low",
+    pd_avg >= 0.108 & pd_avg < 0.151 ~ "Medium",
+    pd_avg >= 0.151 ~ "High",
+    TRUE ~ NA_character_
+  ))
+write.csv(df5,"df5.csv")
+#Randomly select communities that contain each pioneer
+
+pioneer1<-"n19323"
+pioneer2<-"n19298"
+pioneer3<-"n19590"
+pioneer4<-"n16704"
+pioneer5<-"n11659"
+
+#Show all high communities, randomly select one for each pioneer
+selected_rows_high <- subset(df5, Category == "High")
+print(selected_rows_high)
+
+selected_rows_high_1 <- selected_rows_high %>%
+  filter(if_any(everything(), ~. == pioneer1)) %>%
+  sample_n(1)
+selected_rows_high_2 <- selected_rows_high %>%
+  filter(if_any(everything(), ~. == pioneer2)) %>%
+  sample_n(1)
+selected_rows_high_3 <- selected_rows_high %>%
+  filter(if_any(everything(), ~. == pioneer3)) %>%
+  sample_n(1)
+selected_rows_high_4 <- selected_rows_high %>%
+  filter(if_any(everything(), ~. == pioneer4)) %>%
+  sample_n(1)
+selected_rows_high_5 <- selected_rows_high %>%
+  filter(if_any(everything(), ~. == pioneer5)) %>%
+  sample_n(1)
+#show all medium communities, randomly select one for each pioneer
+selected_rows_med <- subset(df5, Category == "Medium")
+print(selected_rows_med)
+
+selected_rows_med_1 <- selected_rows_med %>%
+  filter(if_any(everything(), ~. == pioneer1)) %>%
+  sample_n(1)
+selected_rows_med_2 <- selected_rows_med %>%
+  filter(if_any(everything(), ~. == pioneer2)) %>%
+  sample_n(1)
+selected_rows_med_3 <- selected_rows_med %>%
+  filter(if_any(everything(), ~. == pioneer3)) %>%
+  sample_n(1)
+selected_rows_med_4 <- selected_rows_med %>%
+  filter(if_any(everything(), ~. == pioneer4)) %>%
+  sample_n(1)
+selected_rows_med_5 <- selected_rows_med %>%
+  filter(if_any(everything(), ~. == pioneer5)) %>%
+  sample_n(1)
+#Show communities in Low category, randomly select one for each pioneer
+selected_rows_low <- subset(df5, Category == "Low")
+print(selected_rows_low)
+
+selected_rows_low_1 <- selected_rows_low %>%
+  filter(if_any(everything(), ~. == pioneer1)) %>%
+  sample_n(1)
+selected_rows_low_2  <- selected_rows_low %>%
+  filter(if_any(everything(), ~. == pioneer2)) %>%
+  sample_n(1)
+selected_rows_low_3 <- selected_rows_low %>%
+  filter(if_any(everything(), ~. == pioneer3)) %>%
+  sample_n(1)
+selected_rows_low_4 <- selected_rows_low %>%
+  filter(if_any(everything(), ~. == pioneer4)) %>%
+  sample_n(1)
+selected_rows_low_5 <- selected_rows_low %>%
+  filter(if_any(everything(), ~. == pioneer5)) %>%
+  sample_n(1)
+
+
+selected_rows_df6 <- df5 %>%
+ filter(if_any(everything(), ~. == pioneer4))
+df_sorted <- selected_rows_df5[order(selected_rows_df5$pd_avg), ]
+```
+
+
+
