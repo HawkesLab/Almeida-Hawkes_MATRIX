@@ -16,20 +16,33 @@ brianna.k.almeida@gmail.com
 Triticum aestivum (AGS2000) was grown with fungal synthetic communities to investigate how fungal assembly mechanisms (priority, diversity) impacted the plants response to drought. All fungi were ascomycetes isolated from wheat fields from 7 fields across North Carolina. The communities contained a single pioneer fungus applied first, followed by low diversity (3 fungi) or high diversity (9 fungi) community inoculations. We imposed drought and measured plant growth and physiological performance.  Plants were grown in microcosms to prevent cross-contamination between fungal treatments. Treatments were replicated 6 times, including controls of sterile water. Prior to harvest, we measured height, leaf dieback, stomatal conductance, and severity of disease symptoms if there were any lesions present on the plants. After harvest we measured dry shoot and root mass. Final fungal community composition was assessed from leaf tissue with amplicon sequencing to understand synthetic community persistence and its impact on plant performance. 
 
 ## File list
-AllMergedconcat.seq    
-denovo_treeWNovSamples.nwk   
-Almeida_FinalComAnalysis.Rmd   
-Almeida_FinalComAnalysis.pdf   
-Almeida_PlantPerformance.Rmd   
-Almeida_PlantPerformance.pdf     
-Total_Harvest_Data.csv     
-Total_Phys_Data.csv     
-plotPerformance_backtransformed.csv     
-presence_absence_OTUtable.csv   
-ForCompositionBarGraph.csv   
-TraitsandPersistence.csv   
-Almeida_FinalComAnalysis.Rmd   
-Almeida_PlantPerformance.Rmd   
+AllMergedconcat.seq  
+Almeida_FinalComAnalysis.Rmd  
+Almeida_FinalComAnalysis.pdf  
+Almeida_PlantPerformance.Rmd  
+Almeida_PlantPerformance.pdf  
+Almeida_NetworkAnalyses.pdf  
+Almeida_NetworkAnalyses.Rmd  
+Total_Harvest_Data.csv  
+Total_Phys_Data.csv  
+TraitsAndPersistence.csv  
+best_matches.csv  
+denovo_treeWNovSamples.nwk  
+match_list_field_its.csv  
+netcomi_filtered_assocMatrix.csv  
+netcomi_filtered_edgelist.csv  
+netcomi_filtered_nodelist.csv    
+otu_cluster_column_cutoff1.csv  
+otu_final.csv  
+otu_final2.csv  
+otu_table_for_cooccurence.csv    
+phydist_2023_12_12.rds   
+plotPerformance_backtransformed.csv   
+presence_absence_OTUtable.csv  
+presence_absence_otu_table_for_heatmap.csv  
+relative_abundance_for_heatmap.csv  
+relative_abundance_include_All.csv  
+
 
 ## File descriptions
 AllMergedconcat.seq – FASTA file containing concatenated sequences of actin, beta tubulin, ITS, LSU, and transcription factor 1 for each fungal isolate in the experiment and reference sequences acquired from the NCBI database
