@@ -34,13 +34,22 @@ Almeida_PlantPerformance.Rmd
 ## File descriptions
 AllMergedconcat.seq – FASTA file containing concatenated sequences of actin, beta tubulin, ITS, LSU, and transcription factor 1 for each fungal isolate in the experiment and reference sequences acquired from the NCBI database
 
-denovo_treeWNovSamples.nwk -NWK tree file of AllMergedconcat.seq for calculating cophentic distances of synthetic community treatments
-
 Almeida_FinalComAnalysis.Rmd and Almeida_FinalComAnalysis.pdf - R markdown script and knitted file for analyses related to final foliar community composition and graphing results
 
 Almeida_PlantPerformance.Rmd and Almeida_PlantPerformance.pdf - R markdown script and knitted file for analyses of plant performance data and initial community inoculation and graphing results
 
-Almeida_SelectingSynComs.Rmd and Almeida_SelectingSynComs.pdg - R markdown script and knitted file for selecting synthetic community treatments based on phylogenetic distances 
+Almeida_SelectingSynComs.Rmd  - R markdown script and knitted file for selecting synthetic community treatments based on phylogenetic distances 
+
+Almeida_NetworkAnalyses.Rmd and Almeida_NetworkAnalyses.pdf - R markdown script and knitted file for analyzing field network characteristics and isolate persistence
+
+ForCompositionBarGraph.csv – presence/absence of initial synthetic community members at the end of the experiment as well as contaminant presence for graphing figures
+Variable|	Description|	Units|
+| --- | --- | --- |
+Comm|	Combination of Pioneer, Diversity and Phylogenetic Treatment to indicate Community ID|	NA
+Contam|	Indication is fungal isolate is a contaminant or not|	NA
+Isolate|	Fungal isolate ID or Contaminant ID|	NA
+Presence|	Is the isolate present in the community specified in Comm|	NA
+Diversity| Diversity treatment, Low=4 taxa, High=10 taxa|	NA
 
 
 Total_Harvest_Data.csv- Plant responses and fungal trait measurements based on fungal community composition
