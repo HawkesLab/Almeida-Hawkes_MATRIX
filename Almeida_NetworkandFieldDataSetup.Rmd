@@ -1,0 +1,243 @@
+---
+title: "MatchingFieldData"
+output: html_document
+date: "2025-11-26"
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE,message=FALSE, warning=FALSE}
+library(phyloseq)
+library(NetCoMi)
+library(ape)
+library(dplyr)
+library(tidyverse)
+library(readxl)
+library(phytools)
+library(phangorn)
+library(Biostrings)
+library(ggplot2)
+library(Rmisc)
+library(patchwork)
+library(RRPP)
+```
+
+#Load in data
+```{r}
+otu_table<-read.csv("ASV_counts_lulu.csv", header=TRUE, row.names = 1)
+
+match_list<-read.csv("match_list_field_its.csv",header=TRUE)
+```
+
+#Find highest match to Field Community ASVs and replace ASV name with my isolate number and merge ASVs that are the same isolate 
+```{r}
+best_matches <- match_list %>%
+  group_by(Mara_asv) %>%
+  slice_max(order_by = pct, n = 1, with_ties = FALSE)
+
+asv_map <- setNames(best_matches$my_asv, best_matches$Mara_asv)
+
+asvs_replaced <- names(asv_map)
+
+#write.csv(best_matches,"best_matches.csv")
+
+# Replace
+new_rownames <- asv_map[rownames(otu_table)]
+new_rownames <- ifelse(is.na(new_rownames), rownames(otu_table), new_rownames)
+otu_table$new_rownames <- new_rownames
+
+#write.csv(otu_table,"otu_total.csv")
+
+#replace seq_with isolate ID 
+otu_total<-read.csv("otu_total.csv",header=TRUE)
+cluster<-read.csv("otu_cluster_column_cutoff1.csv",header=TRUE)
+
+m <- match(otu_total$new_rownames, cluster$Original)
+
+otu_total$new_new_rownames <- ifelse(
+  is.na(m),
+  otu_total$new_rownames,
+  cluster$Final[m]
+)
+
+otu_total<-otu_total[,-c(1,2978)]
+
+otu_total <- otu_total %>%
+  group_by(new_new_rownames) %>%
+  dplyr::summarise(across(where(is.numeric), ~ sum(.x, na.rm = TRUE)))
+
+otu_total <- otu_total %>%
+  group_by(new_new_rownames) %>%
+  dplyr::summarise(across(everything(), sum))
+
+#write.csv(otu_total,"otu_total2.csv")
+
+# Remove ASVs that were NOT replaced
+otu_filtered <- otu_table[new_rownames %in% asv_map, ]
+
+#group asvs together
+otu_final <- otu_filtered %>%
+  group_by(new_rownames) %>%
+  summarise(across(everything(), sum))
+
+#write.csv(otu_final,"otu_final.csv")
+
+```
+
+```{r}
+otu_table <- read.csv("otu_final.csv")
+otu_table_merged <- otu_table %>%
+  group_by(Isolate_match) %>%
+  dplyr::summarise(across(where(is.numeric), sum))
+
+#write.csv(otu_table_merged, "otu_final2.csv")
+
+```
+
+#Lets make cutoffs so the dataset to check field data coocurrence isn't so big
+```{r}
+otu_table <- read.csv("otu_total2.csv",header=TRUE,row.names=2)
+
+#remove the first column numbers 
+otu_table<-otu_table[,-1]
+
+#get row sums for taxa
+rowsums<-as.data.frame(rowSums(otu_table))
+#get col sums for samples
+colsums<-as.data.frame(colSums(otu_table))
+min(rowsums$`rowSums(otu_table)`)
+
+#put row sums on the otu_table and remove rows where sum is less than 7 
+
+otu_table$rowsums<-rowsums$`rowSums(otu_table)`
+otu_table2<-otu_table[otu_table$rowsums > 10,]
+min(otu_table2$rowsums) #23353 rows left 
+
+#must occur in at least 1% of 2978 taxa
+otu_table2$zero_counts <- rowSums(otu_table2 == 0)
+
+otu_table3<-otu_table2[otu_table2$zero_counts < 2948,]
+max(otu_table3$zero_counts)
+
+plot(otu_table3$zero_counts)
+
+#write.csv(otu_table3,"otu_table_for_cooccurence.csv")
+#turn the table into presence/absence
+coocurrence <- read.csv("otu_table_for_cooccurence.csv",header=TRUE,row.names=1)
+coocurrence2 <- as.data.frame(ifelse(coocurrence > 0, 1, 0))
+#write.csv(coocurrence2,"presence_absence_otu_table_for_cooccurence.csv")
+```
+
+#Heatmap
+```{r}
+library(reshape)
+field_matrix<-read.csv("presence_absence_otu_table_for_heatmap.csv", header=TRUE)
+field_matrix<-field_matrix[,-2]
+#field_matrix<-as.matrix(field_matrix)
+
+data_melt<-melt(field_matrix)
+data_melt$variable<-factor(data_melt$variable ,levels=c("X6205","X16637","X16772","X16817","X6135",
+                                                  "X11659","X21710","X24048","X19488","X13515","X21153","X16520",
+                                                  "X24428","X19323","X13692","X7999"))
+data_melt$value<-as.factor(data_melt$value)
+
+heatmap(as.matrix(field_matrix[,-1]), Rowv= NA, Colv=NA)
+
+ggp <- ggplot(data_melt, aes(variable,X)) +                           
+  geom_tile(aes(fill = value))+
+  scale_fill_manual(values=c("#e3e4d2","#767b48"))
+ggp
+
+field_abundance_matrix<-read.csv("otu_table_for_heatmap.csv", header=TRUE, row.names = 1)
+rel_abund_subsetance <- sweep(field_abundance_matrix, 2, colSums(field_abundance_matrix), "/")
+#write.csv(rel_abund_subsetance,"relative_abundance_for_heatmap.csv")
+
+relativefield_abundance_matrix<-read.csv("relative_abundance_for_heatmap.csv", header=TRUE, row.names = 1)
+
+
+#relativefield_abundance_matrix<-t(relativefield_abundance_matrix)
+data_melt2<-melt(relativefield_abundance_matrix)
+
+data_melt2$X2<-factor(data_melt2$X2 ,levels=c("6205","16637","16772","16817","6135",                                                 "11659","21710","24048","19488","13515","21153","16520",
+                  "24428","19323","13692","7999"))
+#sort into order of prevalence
+
+ggp <- ggplot(data_melt2, aes(X2, X1)) +                           
+  geom_tile(aes(fill = value))+
+  scale_fill_gradient2(low="#e3e4d2", mid="#ADB08D", high="#767b48", 
+                       midpoint=0.5, limits=range(data_melt2$value))+
+  theme(
+    axis.title.y = element_blank(), # Removes title
+    axis.text.y = element_blank(),  # Removes labels/numbers
+    axis.ticks.y = element_blank())
+ggp
+
+```
+
+#Run NetCoMi, this step takes a long time 
+```{r}
+counts <- read.csv("otu_table_for_cooccurence.csv", row.names = 1, header = T)
+
+
+netComi_out<- netConstruct(t(counts),
+                                  filtTaxPar = list(numbSamp = 2),
+                                  measure = "sparcc",
+                                  measurePar = list(nlambda=20, 
+                                                    rep.num=20,
+                                                    quantitative = TRUE,
+                                                    thresh = 0.17),
+                                  normMethod = "VST", 
+                                  zeroMethod = "none",
+                                  sparsMethod = "none", 
+                                  dissFunc = "signed",
+                                  verbose = 3,
+                                  seed = 123456)
+
+netComi_out_edgelist <- as.data.frame(netComi_out$edgelist1)
+netComi_out_associationMatrix <- as.data.frame(netComi_out$assoMat1)
+
+#There is a hidden non-breaking space character that needs fixing
+colnames(netComi_out_associationMatrix)[colnames(netComi_out_associationMatrix) == "Phaeosphaeriaceae\xa0"] <- "Phaeosphaeriaceae"
+#write.csv(netComi_out_associationMatrix,"netComi_out_assocMatrix.txt")
+
+#write.csv(netComi_out_edgelist,"netComi_out_edgelist.csv")
+
+#-------------------------------
+set.seed(123456)
+construct_out<-netAnalyze(netComi_out,
+             centrLCC=TRUE,
+             clutMethod="cluster_fast_greedy",
+             hubPar="eigenvector",
+             weightDeg=FALSE,
+             normDEG=FALSE)
+
+summary(construct_out)
+
+eigenvectors<-construct_out$centralities
+#write.csv(eigenvectors,"eigenvectors.csv") #hubs = above 0.95
+```
+
+#Check the output from NetCoMi run 
+```{r}
+edge_list<-read.csv("netComi_out_edgelist.csv", header=TRUE, row.names = 1)
+net_matrix<-read.csv("netComi_out_assocMatrix.csv", header=TRUE, row.names = 1)
+
+#cutoffs for association -0.3 and below and 0.3 and above 
+
+edge_list2<-subset(edge_list, asso < -0.3 | asso > 0.3)
+
+#write.csv(edge_list2,"netcomi_filtered_edgelist.csv")
+edge_list2<-read.csv("netcomi_filtered_edgelist.csv", header=TRUE)
+
+uniquelist<-unique(c(edge_list2$v1, edge_list2$v2))
+uniquelist<-as.data.frame(uniquelist)
+
+net_matrix2 = net_matrix[row.names(net_matrix) %in% uniquelist$uniquelist,]
+
+colnames(net_matrix2)=sub("X","",colnames(net_matrix2))
+net_matrix3 = net_matrix2[,colnames(net_matrix2) %in% row.names(net_matrix2)]
+
+#write.csv(net_matrix3,"netcomi_filtered_assocMatrix.csv")
+```
+
+#Then the filtered netcomi AssociationMatrix was loaded into Cytoscape to visualize the field network and get network characteristics such as radiality and centrality 

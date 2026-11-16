@@ -2,10 +2,9 @@
 title: "RRPp"
 author: "Brianna Almeida"
 output:
+  pdf_document: default
   html_document:
     df_print: paged
-  pdf: default
-  pdf_document: default
 editor_options:
   chunk_output_type: console
 ---
@@ -24,7 +23,6 @@ library(phyloseq)
 library(dplyr)
 library(car)
 library(ggplot2)
-library(colorRamps)
 library(tidyverse)
 library(stringr)
 library(ggord)
@@ -37,7 +35,6 @@ library(microbiome)
 library(DESeq2)
 library(corrplot)
 library(olsrr)
-library(psadd)
 library(lme4)
 library(RRPP)
 library(ggforce)
@@ -72,6 +69,7 @@ presence_absence_fung <- presence_absence_fung[rownames(metadata),]
 fung_vegdist<-vegan::vegdist(presence_absence_fung,method="jaccard")
 fung_vegdist<-as.matrix(fung_vegdist)
 
+set.seed(345)
 #structure based on Montgomery with drought nested in microcosm
 of2 <- RRPP::lm.rrpp(fung_vegdist ~ Comm*Microcosm/Drought+ 1/TimeBlock,
 data = metadata, SS.type = "III", print.progress = FALSE, seed = "random", iter = 1000)
@@ -79,6 +77,7 @@ data = metadata, SS.type = "III", print.progress = FALSE, seed = "random", iter 
 anova(of2, effect.type = "F")
 anova(of2, effect.type = "F", error =c("Comm:Microcosm:Drought","Residuals","Residuals","Residuals"))
 
+set.seed(345)
 #separate SynCom into pioneer and diversity treatments
 of2 <- RRPP::lm.rrpp(fung_vegdist ~ Pioneer*Diversity.Level*(Microcosm/Drought)+ 1/TimeBlock,
 data = metadata, SS.type = "III", print.progress = FALSE, seed = "random", iter = 1000)
@@ -86,22 +85,37 @@ data = metadata, SS.type = "III", print.progress = FALSE, seed = "random", iter 
 anova(of2, effect.type = "F")
 anova(of2, effect.type = "F", error =c("Pioneer:Microcosm:Drought","Diversity.Level:Microcosm:Drought","Residuals","Residuals","Residuals","Residuals","Residuals","Residuals","Residuals","Residuals","Residuals"))
 
+set.seed(345)
 of3 <- RRPP::lm.rrpp(fung_vegdist ~ Pioneer,
 data = metadata, SS.type = "III", print.progress = FALSE, seed = "random", iter = 1000)
 anova(of3, effect.type = "F")
 
 fit<-RRPP::pairwise(of3,groups=metadata$Pioneer)
 print<-summary.pairwise(fit)
-print<-summary(fit)
+print1<-summary(fit)
 print2<-print$summary.table
 
 fit<-RRPP::pairwise(of2,groups=metadata$Comm)
 print<-summary.pairwise(fit)
-print<-summary(fit)
-print<-print$summary.table
+print1<-summary(fit)
+print2<-print$summary.table
 
 ```
 
+Define color palette
+```{r}
+c35 <- c( "dodgerblue2", "#E31A1C", # red
+  "green4",
+  "#6A3D9A", # purple
+  "#FF7F00", # orange
+  "lavenderblush2", "gold1",
+  "skyblue2", "#FB9A99", # lt pink
+  "palegreen2",
+  "#CAB2D6", # lt purple
+  "#FDBF6F", # lt orange
+  "gray70", "khaki2", "maroon", "orchid1", "deeppink1", "blue1", "steelblue4","darkturquoise", "green1", "yellow4", "yellow3", "darkorange4", "brown", 'moccasin', 'mediumvioletred', 'seagreen','cadetblue1',"darkolivegreen1" ,"black"
+)
+```
 Is final community associated with any plant performance metrics? 
 ```{r}
 metadata_phys<-read.csv("Total_Phys_Data.csv",sep=",",header=TRUE, row.names=1)
@@ -119,6 +133,7 @@ ps_distance<-phyloseq::distance(ps_fung,"jaccard")
 metadata$gsw<-metadata_phys$gsw
 
 #RRPP with distance matrix----------------------------------------------------------
+set.seed(345)
 of1 <- RRPP::lm.rrpp(ps_distance ~gsw+ Height+Total_Shoot_Mass+Root.Shoot+Dry_Root_Mass+Ratio.of.BrownToTotal+Ratio.of.lesion.to.total.leaf+1/TimeBlock,
                     data = metadata, SS.type = "III",
                     print.progress = FALSE, seed = "random", iter = 1000)
@@ -144,22 +159,6 @@ c6<-c("#4477AA","#FF7F00","#CCBB44",
        "#228833","orchid1","black","grey")
 
 
-c35 <- c(
-  "dodgerblue2", "#E31A1C", # red
-  "green4",
-  "#6A3D9A", # purple
-  "#FF7F00", # orange
-  "lavenderblush2", "gold1",
-  "skyblue2", "#FB9A99", # lt pink
-  "palegreen2",
-  "#CAB2D6", # lt purple
-  "#FDBF6F", # lt orange
-  "gray70", "khaki2",
-  "maroon", "orchid1", "deeppink1", "blue1", "steelblue4",
-  "darkturquoise", "green1", "yellow4", "yellow3",
-  "darkorange4", "brown", 'moccasin', 'mediumvioletred', 'seagreen','cadetblue1',
-                "darkolivegreen1" ,"black"
-)
 
 aggregated<-aggregate(cbind(nmds1,nmds2)~Pioneer*Diversity.Level,data=metadata,FUN=mean,na.rm=TRUE)
 aggregated_sd<-aggregate(cbind(nmds1,nmds2)~Pioneer*Diversity.Level,data=metadata,FUN=sd,na.rm=TRUE)
@@ -168,7 +167,7 @@ aggregated$sd2<-aggregated_sd$nmds2
  
 
 ord_nmds<- ggplot(aggregated,aes(x=nmds1,y=nmds2,color=Pioneer,shape=Diversity.Level)) +
-  geom_point(aes(size = 5)) +
+  geom_point(size = 5) +
   scale_color_manual(values=c6)+
   scale_shape_manual(values = c(17,15,16)) +
   theme_classic() +
@@ -179,7 +178,7 @@ ord_nmds<- ggplot(aggregated,aes(x=nmds1,y=nmds2,color=Pioneer,shape=Diversity.L
 ord_nmds
 
 ord_nmds<- ggplot(metadata,aes(x=nmds1,y=nmds2,color=Pioneer,shape=Diversity.Level)) +
-  geom_point(aes(size = 5)) +
+  geom_point(size = 5) +
   scale_color_manual(values=c6)+
   scale_shape_manual(values = c(17,15,16)) +
   theme_classic() +
@@ -221,18 +220,6 @@ df <- data.frame(
   distance = dispersion$distances
 )
 
-c35 <- c( "dodgerblue2", "#E31A1C", # red
-  "green4",
-  "#6A3D9A", # purple
-  "#FF7F00", # orange
-  "lavenderblush2", "gold1",
-  "skyblue2", "#FB9A99", # lt pink
-  "palegreen2",
-  "#CAB2D6", # lt purple
-  "#FDBF6F", # lt orange
-  "gray70", "khaki2", "maroon", "orchid1", "deeppink1", "blue1", "steelblue4","darkturquoise", "green1", "yellow4", "yellow3", "darkorange4", "brown", 'moccasin', 'mediumvioletred', 'seagreen','cadetblue1',"darkolivegreen1" ,"black"
-)
-
 ggplot(df, aes(x = group, y = distance,color=group)) +
   geom_boxplot() +
   geom_jitter(width = 0.1, alpha = 0.4) +
@@ -253,7 +240,7 @@ graphing<-read.csv("ForCompositionBarGraph.csv",sep=",",header=TRUE)
 graphingcontam<-subset(graphing, Contam == "Y")
 graphingiso<-subset(graphing, Contam == "N")
 
-graphingiso$Presence<- as.numeric(graphingiso$Presence)  
+#graphingiso$Presence<- as.numeric(graphingiso$Presence)  
 
 #separate isolates by community and actual
 graphingactual<-subset(graphingiso, Presence == "Y")
@@ -334,7 +321,7 @@ c42<-c(#Stag-11659
 #Unk-6070
 "#b4efc8",
 #Didy-6131
-"#4fa3cb",
+"lightblue",
 #Myco-6135
 "#687f3a",
 #Didy-6163

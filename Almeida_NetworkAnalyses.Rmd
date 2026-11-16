@@ -32,6 +32,7 @@ abundance <- abundance[rownames(metadata),]
 metadata <- metadata[rownames(abundance),]
 abundance<-as.matrix(abundance)
 
+set.seed(345)
 of2 <- RRPP::lm.rrpp(abundance ~ Persist,
 data = metadata, SS.type = "III", print.progress = FALSE, seed = "random", iter = 1000)
  
@@ -49,7 +50,7 @@ rel_abund_subset <- rel_abund_subset[rownames(metadata),]
 metadata <- metadata[rownames(rel_abund_subset),]
 rel_abund_subset<-as.matrix(rel_abund_subset)
 
-
+set.seed(345)
 of3 <- RRPP::lm.rrpp(rel_abund_subset ~ Persist,
 data = metadata, SS.type = "III", print.progress = FALSE, seed = "random", iter = 1000)
  
@@ -70,16 +71,6 @@ summary(man.test)
 summary.aov(man.test)
 
 post_hoc<-aov(Degree~Persist,data=node_list)
-summary(post_hoc)
-results<-HSD.test(post_hoc,"Persist",group=TRUE)
-print(results$groups)
-
-post_hoc<-aov(ClosenessCentrality~Persist,data=node_list)
-summary(post_hoc)
-results<-HSD.test(post_hoc,"Persist",group=TRUE)
-print(results$groups)
-
-post_hoc<-aov(Radiality~Persist,data=node_list)
 summary(post_hoc)
 results<-HSD.test(post_hoc,"Persist",group=TRUE)
 print(results$groups)

@@ -26,12 +26,6 @@ library(ggtree); packageVersion("ggtree")
 library(ggpubr); packageVersion("ggpubr")
 ```
 
-#Load in a tree
-```{r,warning = FALSE, message = FALSE}
-tree<-phytools::read.newick("denovo_treeWNovSamples.nwk")
-PatristicDistMatrix<-cophenetic.phylo(tree)
-
-```
 
 ## Ultrametric Tree
 ```{r,warning = FALSE, message = FALSE}
@@ -260,7 +254,6 @@ pd_plot<-ggplot(data= pd_plotdata, aes(x=row.names(pd_plotdata), y=pd_avg))+
   geom_point()+
   theme_classic()+
   xlab("Community")+ylab("Phylogenetic Distance")
-  geom_pointrange(aes(ymin = pd_avg-pd_std, ymax = pd_avg+pd_std))
 
 pd_plot
 
@@ -659,7 +652,8 @@ selected_rows_low_5 <- selected_rows_low %>%
 
 selected_rows_df6 <- df5 %>%
  filter(if_any(everything(), ~. == pioneer4))
-df_sorted <- selected_rows_df5[order(selected_rows_df5$pd_avg), ]
+
+df_sorted <- selected_rows_df6[order(selected_rows_df6$pd_avg), ]
 ```
 
 
