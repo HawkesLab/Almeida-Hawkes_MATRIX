@@ -25,9 +25,6 @@ Almeida_PlantPerformance.Rmd
 Almeida_PlantPerformance.pdf  
 Almeida_NetworkAnalyses.pdf  
 Almeida_NetworkAnalyses.Rmd  
-Total_Harvest_Data.csv  
-Total_Phys_Data.csv  
-TraitsAndPersistence.csv  
 best_matches.csv  
 denovo_treeWNovSamples.nwk  
 ForCompositionBarGraph.csv  
@@ -44,7 +41,10 @@ plotPerformance_backtransformed.csv
 presence_absence_OTUtable.csv  
 presence_absence_otu_table_for_heatmap.csv  
 relative_abundance_for_heatmap.csv  
-
+relative_abundance_include_All.csv  
+Total_Harvest_Data.csv  
+Total_Phys_Data.csv  
+TraitsAndPersistence.csv  
 
 ## File descriptions
 AllMergedconcat.seq – FASTA file containing concatenated sequences of actin, beta tubulin, ITS, LSU, and transcription factor 1 for each fungal isolate in the experiment and reference sequences acquired from the NCBI database
@@ -57,14 +57,14 @@ Almeida_SelectingSynComs.Rmd  - R markdown script and knitted file for selecting
 
 Almeida_NetworkAnalyses.Rmd and Almeida_NetworkAnalyses.pdf - R markdown script and knitted file for analyzing field network characteristics and isolate persistence
 
-best_matches.csv  - Best ASV matches from field wheat communities with fungi from synthetic community experiment
+best_matches.csv  - table with the best matches between the wheat field ASVs and ASVs from the leaves sequenced from the growth chamber experiment indicating base pair overlap  
 Variable|	Description|	Units|
 | --- | --- | --- |
 Mara_asv|	ASV id of fungi in field wheat communities|	NA
 my_asv|	ASV or culture identity from sequenced synthetic communities|	NA
 pct|	Percent overlap between ASV sequences|	NA
 
-denovo_treeWNovSamples.nwk - Maximum likelihood tree created using RAxML 8 of fungi isolated from wheat. 
+denovo_treeWNovSamples.nwk -NWK tree file of RAxML of AllMergedconcat.seq for calculating phylogenetic distances of synthetic community treatments
 
 ForCompositionBarGraph.csv – presence/absence of initial synthetic community members at the end of the experiment as well as contaminant presence for graphing figures
 Variable|	Description|	Units|
@@ -75,15 +75,52 @@ Isolate|	Fungal isolate ID or Contaminant ID|	NA
 Presence|	Is the isolate present in the community specified in Comm|	NA
 Diversity| Diversity treatment, Low=4 taxa, High=10 taxa|	NA
 
-match_list_field_its.csv - 
+match_list_field_its.csv -  table with matches between the wheat field ASVs and ASVs from the leaves sequenced from the growth chamber experiment indicating base pair overlap  
+Variable|	Description|	Units|
+| --- | --- | --- |
+Mara_asv|	ASV id of fungi in field wheat communities|	NA
+my_asv|	ASV or culture identity from sequenced synthetic communities|	NA
+pct|	Percent overlap between ASV sequences|	NA
 
-netcomi_filtered_assocMatrix.csv  
+netcomi_filtered_assocMatrix.csv - association matrix of experimental and field isolates from field communities representing cooccurrence of the microbial taxa
 
-netcomi_filtered_edgelist.csv  
+| Variable | Description | Units |
+|----------|-------------|-------|
+| `BetweennessCentrality` | How often a node lies on the shortest path between two other nodes; high values indicate hub/bridge species | NA |
+| `ClosenessCentrality` | How quickly a node can reach all other nodes in the network | NA |
+| `ClusteringCoefficient` | How much a node's neighbors are also connected to each other | NA |
+| `Degree` | Number of connections (edges) to a node | count |
+| `Eccentricity` | Length of the shortest path from a node to the farthest other node in the network |NA|
+| `NeighborhoodConnectivity` | Average degree of all immediate neighbors of a node | NA|
+| `NumberOfDirectedEdges` | Count of ordered (directional) pairs involving a node | count |
+| `NumberOfUndirectedEdges` | Count of unique undirected pairs involving a node | count |
+| `Radiality` | How easily a node can reach the rest of the network, weighted by graph diameter | NA |
+| `Stress` | Total number of shortest paths passing through a node | NA |
+| `TopologicalCoefficient` | Similarity of a node's neighborhood to its neighbors' neighborhoods | NA |
+| `AverageShortestPathLength` | Mean of the shortest paths between a node and all other reachable nodes | NA |
+| `Sharednam` | SynCom isolate ID or ASV ID | NA |
+| `Taxonomy` | Closest taxonomic identification | NA |
+| `Persist` | Whether the SynCom isolate persisted in the experiment (Y/N) |NA|
+| `cat` | Whether the isolate is present in the SynCom experiment (Y/N) |NA |
+| `AverageNASlope` | Osmotic sensitivity, measured as the slope of normalized absorbance over a NaCl gradient | NA |
+| `AverageIAA` | IAA (auxin) production by the isolate | µg/mL |
 
-netcomi_filtered_nodelist.csv    
 
-otu_cluster_column_cutoff1.csv  
+netcomi_filtered_edgelist.csv – network edge list output for association, dissimilarity, and adjacency between pairs of fungal ASVs 
+
+netcomi_filtered_nodelist.csv - Network traits of SynCom isolates in the field extracted from Cytoscape  
+
+otu_cluster_column_cutoff1.csv - ASV table matching amplicon sequences to inoculated fungal isolates  
+
+otu_cluster_column_cutoff1.csv – ASV table matching amplicon sequences to inoculated fungal isolates  
+
+otu_final.csv – ASV table abundance with after matching ASVs to field community sequencing containing growth chamber isolates and field isolates  
+
+otu_final2.csv – ASV table abundance after matching ASVs to field community sequencing containing field abundances of only isolates present in the growth chamber experiment  
+
+otu_table_for_cooccurence.csv – read counts of SynCom isolates and other ASVs present in wheat field samples used in NetCoMi analysis  
+
+phydist_2023_12_12.rds – R object containing the phylogenetic distances for selecting experimental SynComs  
 
 plotPerformance_backtransformed.csv – back transformations of transformed plant performance metrics for graphing  figures
 |Variable|	Description	|Units|
@@ -101,7 +138,11 @@ Comm|	Combination of Pioneer, Diversity and Phylogenetic Treatment to indicate C
 
 presence_absence_OTUtable.csv – presence/absence data of samples (columns) by synthetic community isolates (labeled with numbers) and contaminants (rows) 
 
-relative_abundance_for_heatmap.csv  
+presence_absence_otu_table_for_heatmap.csv – presence/absence matrix of experimental isolates in wheat field communities, labeled by location  
+
+relative_abundance_for_heatmap.csv - relative abundance matrix of SynCom Isolates in field samples.
+
+relative_abundance_include_All.csv - relative abundance matrix including SynCom isolates and other ASVs present in field samples
 
 Total_Harvest_Data.csv- Plant responses and fungal trait measurements based on fungal community composition
 Variable|	Description|	Units
