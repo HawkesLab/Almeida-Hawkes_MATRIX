@@ -25,6 +25,7 @@ Almeida_PlantPerformance.Rmd
 Almeida_PlantPerformance.pdf  
 Almeida_NetworkAnalyses.pdf  
 Almeida_NetworkAnalyses.Rmd  
+Almeida_SelectingSynComs.Rmd
 best_matches.csv  
 denovo_treeWNovSamples.nwk  
 ForCompositionBarGraph.csv  
@@ -102,17 +103,42 @@ netcomi_filtered_assocMatrix.csv - association matrix of experimental and field 
 | `Taxonomy` | Closest taxonomic identification | NA |
 | `Persist` | Whether the SynCom isolate persisted in the experiment (Y/N) |NA|
 | `cat` | Whether the isolate is present in the SynCom experiment (Y/N) |NA |
-| `AverageNASlope` | Osmotic sensitivity, measured as the slope of normalized absorbance over a NaCl gradient | NA |
+| `AverageNASlope` | Average osmotic sensitivity of fungal isolates of those present at the end the end of the experiment for each fungal community treatment|	g/ g/NaCl/L
 | `AverageIAA` | IAA (auxin) production by the isolate | µg/mL |
 
 
 netcomi_filtered_edgelist.csv – network edge list output for association, dissimilarity, and adjacency between pairs of fungal ASVs 
+Variable|	Description|	Units|
+| --- | --- | --- |
+v1|Isolate 1| NA
+v2|Isolate 2| NA
+asso| Association weight between two nodes based on SparCC|NA
+diss| distance between two nodes so that strongly associated pairs have small distances|NA
+adja| Adjacency value|NA
 
 netcomi_filtered_nodelist.csv - Network traits of SynCom isolates in the field extracted from Cytoscape  
+Variable|	Description|	Units|
+| --- | --- | --- |
+sharedname|	Fungal isolate ID|NA
+Taxonomy| Closest taxonomic identification | NA |
+BetweennessCentrality| How often a node lies on the shortest path between two other nodes; high values indicate hub/bridge species | NA |
+Persist| Whether the isolate persisted to the end of the growth chamber experiment based on amplicon sequencing of the final foliar community|	NA
+cat|Whether the isolate is present in the SynCom experiment (I/N) |NA |
+ClosenessCentrality| How quickly a node can reach all other nodes in the network | NA |
+ClusteringCoefficient|How much a node's neighbors are also connected to each other | NA |
+Degree|Number of connections (edges) to a node | count |
+Eccentricity|Length of the shortest path from a node to the farthest other node in the network |NA|
+NeighborhoodConnectivity|Average degree of all immediate neighbors of a node | NA|
+| `NumberOfDirectedEdges` | Count of ordered (directional) pairs involving a node | count |
+| `NumberOfUndirectedEdges` | Count of unique undirected pairs involving a node | count |
+| `Radiality` | How easily a node can reach the rest of the network, weighted by graph diameter | NA |
+| `Stress` | Total number of shortest paths passing through a node | NA |
+| `TopologicalCoefficient` | Similarity of a node's neighborhood to its neighbors' neighborhoods | NA |
+| `AverageShortestPathLength` | Mean of the shortest paths between a node and all other reachable nodes | NA |
+AverageNASlope|Average osmotic sensitivity of fungal isolates of those present at the end the end of the experiment for each fungal community treatment|	g/ g/NaCl/L
+AverageIAA|IAA (auxin) production by the isolate | µg/mL |
 
-otu_cluster_column_cutoff1.csv - ASV table matching amplicon sequences to inoculated fungal isolates  
-
-otu_cluster_column_cutoff1.csv – ASV table matching amplicon sequences to inoculated fungal isolates  
+otu_cluster_column_cutoff1.csv – ASV table matching Illumina amplicon sequences to inoculated fungal isolates with the Final column indicating final id of those isolates  
 
 otu_final.csv – ASV table abundance with after matching ASVs to field community sequencing containing growth chamber isolates and field isolates  
 
@@ -201,7 +227,7 @@ TimeBlock|	ID of which time block that sample belongs to|	NA
 TraitsandPersistence.csv – Fungal trait performance
 |Variable|	Description|	Units|
 | --- | --- | --- |
-sharedname|	Fungal| isolate ID|	NA
+sharedname|	Fungal isolate ID|	NA
 Persist|	Whether the isolate persisted to the end of the growth chamber experiment based on amplicon sequencing of the final foliar community|	NA
 AverageNASlope| Average osmotic sensitivity of fungal isolates of those present at the end the end of the experiment for each fungal community treatment|	g/ g/NaCl/L
 AverageIAA|	Average indole acetic acid production of fungal isolates in liquid media of those present at the end of the experiment for each fungal community treatment|µg/mL
