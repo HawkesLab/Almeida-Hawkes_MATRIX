@@ -236,7 +236,7 @@ AverageIAA|	Average indole acetic acid production of fungal isolates in liquid m
 ## Note
 ## Publication Information
 ## Funding Information
-This work was supported by the Tri Institutional Medical Mycology Training Fellowship (T32AI052080) and the Novo Nordisk Foundation (NNF19SA0059348) for funding.
+This work was supported by the Tri Institutional Medical Mycology Training Fellowship (T32AI052080), the Novo Nordisk Foundation (NNF19SA0059348) for funding, and by the Research Capacity Fund (HATCH; project award no. 7005451) from the U.S. Department of Agriculture’s National Institute of Food and Agriculture 
 ## Additional data-raw sequences
 Illumina Sequence data are available at the NCBI BioProject PRJNA1255089 and at the following NCBI Accessions.
 
